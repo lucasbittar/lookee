@@ -1,6 +1,7 @@
 package com.lookee.tv.ui.navigation
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -138,6 +139,13 @@ private fun NavTab(label: String, selected: Boolean, onFocused: () -> Unit, modi
         )
     }
 }
+
+/**
+ * Height of the top navigation, which floats over the screens with no background of its own
+ * (as in the mockups). Screens draw their backdrops and glows from the very top and start
+ * their content this far down.
+ */
+val LocalNavInset = compositionLocalOf { 88.dp }
 
 @Composable
 fun rememberNavRequesters(): Map<Destination, FocusRequester> =

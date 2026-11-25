@@ -101,6 +101,8 @@ The user's rule: no empty cards. TMDB artwork comes first. Otherwise (lessons, p
 
 **Screen headings (revised 2026-11-25):** every category heading is the same stack, with the kicker in the category tint ("NOW SHOWING", "UP NEXT", "LIVE", "WORKSHOP", "STREAM") above the title in Inter. The categories differ in mood, layout and card type, not in heading fonts. Headings stay pinned on Movies, Series, Tutorials and Discover, where the content is a grid or rows that scroll under them. On Concerts and Settings they scroll away with the content.
 
+**Navigation bar:** transparent and floating over the screen, as in the mockups. Backdrops, glows and stage lights run up behind it. Screens start their content below it using `LocalNavInset` (the measured nav height).
+
 **Search:** each media screen has a search box at the right of its heading. It's a pill on the D-pad, so passing over it doesn't open the keyboard. OK turns it into a text field. The keyboard's Search key, Back or Down return to the pill, and **Clear** appears beside it while a search is active.
 - Movies, Series and Concerts filter the titles already on screen, live, ignoring case and accents.
 - Tutorials searches every lessons folder through the core (`searchLessons`). Each hit shows its folder underneath, and OK on a folder opens it.

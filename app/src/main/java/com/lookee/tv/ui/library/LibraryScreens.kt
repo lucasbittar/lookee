@@ -1,6 +1,7 @@
 package com.lookee.tv.ui.library
 
 import androidx.activity.compose.BackHandler
+import com.lookee.tv.ui.navigation.LocalNavInset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -166,14 +167,14 @@ fun MoviesScreen() {
         }
     }
     Box(Modifier.fillMaxSize()) {
-        Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(360.dp)) {
+        Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(360.dp + LocalNavInset.current)) {
             CategoryGlow(CategoryLook.Movies, Offset(960f, -200f), radius = 1100f)
         }
         if (!state.loading && state.data.isEmpty()) {
             EmptyLibrary("No movies yet", "Add your Movies folder in Settings and lookee will fetch posters and details.")
             return@Box
         }
-        Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().padding(top = LocalNavInset.current)) {
         ScreenHeader(
             kicker = CategoryLook.Movies.kicker,
             title = "Movies",
@@ -231,7 +232,7 @@ fun SeriesScreen() {
             EmptyLibrary("No shows yet", "Add your TV Shows folder in Settings. Seasons and episodes are matched automatically.")
             return@Box
         }
-        Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().padding(top = LocalNavInset.current)) {
         ScreenHeader(
             look.kicker, "Series", look.tint, MaterialTheme.typography.displayMedium,
             Modifier.padding(start = ScreenInset, end = ScreenInset, top = 16.dp, bottom = 20.dp),
@@ -322,7 +323,7 @@ fun ConcertsScreen() {
         }
         val found = remember(state.data, query) { state.data.filter { matchesQuery(it.title, query) } }
         // The heading scrolls away with the rows: with big gig cards, every pixel counts.
-        LazyColumn(contentPadding = PaddingValues(bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(32.dp)) {
+        LazyColumn(Modifier.padding(top = LocalNavInset.current), contentPadding = PaddingValues(bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(32.dp)) {
             item {
                 ScreenHeader(
                     look.kicker, "Concerts", look.tint, MaterialTheme.typography.displayMedium,
@@ -444,7 +445,7 @@ fun TutorialsScreen() {
                 runCatching { if (lessons.isNotEmpty()) firstLesson.requestFocus() else firstFolder.requestFocus() }
             }
         }
-        Column(Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 16.dp)) {
+        Column(Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = LocalNavInset.current + 16.dp)) {
             Row(Modifier.fillMaxWidth().padding(bottom = 20.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
                     Text(

@@ -1,6 +1,7 @@
 package com.lookee.tv.ui.home
 
 import androidx.compose.animation.Crossfade
+import com.lookee.tv.ui.navigation.LocalNavInset
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -150,15 +151,17 @@ fun HomeScreen() {
 
     Box(Modifier.fillMaxSize()) {
         // Banner backdrop, crossfading as focus moves.
+        val inset = LocalNavInset.current
         Crossfade(state.hero?.backdrop, animationSpec = tween(400), label = "backdrop", modifier = Modifier.align(Alignment.TopEnd)) { url ->
-            Box(Modifier.width(620.dp).height(360.dp)) {
+            // Runs up behind the transparent nav; the top stays dark enough for the tabs to read.
+            Box(Modifier.width(620.dp).height(360.dp + inset)) {
                 if (!url.isNullOrBlank()) RemoteImage(url, Modifier.fillMaxSize())
                 Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(LookeeColors.Bg, LookeeColors.Bg.copy(alpha = 0.55f), Color.Transparent))))
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to LookeeColors.Bg, 0.18f to Color.Transparent, 0.6f to LookeeColors.Bg.copy(alpha = 0.6f), 1f to LookeeColors.Bg)))
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to LookeeColors.Bg.copy(alpha = 0.8f), 0.3f to Color.Transparent, 0.6f to LookeeColors.Bg.copy(alpha = 0.6f), 1f to LookeeColors.Bg)))
             }
         }
 
-        SyncPill(scan, Modifier.align(Alignment.TopEnd).padding(end = 48.dp, top = 4.dp))
+        SyncPill(scan, Modifier.align(Alignment.TopEnd).padding(end = 48.dp, top = inset + 4.dp))
 
         val nothing = !state.loading && home.continueWatching.isEmpty() && home.recentlyAdded.isEmpty()
         when {
@@ -172,7 +175,7 @@ fun HomeScreen() {
                 modifier = Modifier.align(Alignment.Center),
                 action = { LookeeButton("Open Settings", onClick = { nav.goToTab(Destination.Settings) }) },
             )
-            else -> Column(Modifier.fillMaxSize()) {
+            else -> Column(Modifier.fillMaxSize().padding(top = inset)) {
                 HeroText(state.hero, Modifier.padding(start = 48.dp, top = 18.dp, end = 360.dp).height(176.dp))
                 LazyColumn(
                     contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),

@@ -1,6 +1,9 @@
 package com.lookee.tv.ui
 
 import android.Manifest
+import com.lookee.tv.ui.navigation.LocalNavInset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
 import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -141,7 +144,9 @@ fun LookeeRoot() {
         }
     }
 
-    CompositionLocalProvider(LocalNavigator provides navigator, LocalBringIntoViewSpec provides FollowFocusScroll) {
+    var navHeight by remember { mutableStateOf(88.dp) }
+    val density = LocalDensity.current
+    CompositionLocalProvider(LocalNavigator provides navigator, LocalBringIntoViewSpec provides FollowFocusScroll, LocalNavInset provides navHeight) {
         Box(
             Modifier
                 .fillMaxSize()
@@ -169,15 +174,14 @@ fun LookeeRoot() {
                         ),
                     ),
             ) {
-                Column(Modifier.fillMaxSize()) {
-                    TopNav(selected = selected, onSelect = { selected = it }, requesters = requesters)
+                // The nav floats over the screen: backdrops and glows run up behind it.
+                Box(Modifier.fillMaxSize()) {
                     AnimatedContent(
                         targetState = selected,
                         transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(160)) },
                         label = "destination",
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
+                            .fillMaxSize()
                             .onFocusChanged { contentHasFocus = it.hasFocus },
                     ) { dest ->
                         when (dest) {
@@ -190,6 +194,12 @@ fun LookeeRoot() {
                             Destination.Settings -> SettingsScreen()
                         }
                     }
+                    TopNav(
+                        selected = selected,
+                        onSelect = { selected = it },
+                        requesters = requesters,
+                        modifier = Modifier.onSizeChanged { navHeight = with(density) { it.height.toDp() } },
+                    )
                 }
             }
 

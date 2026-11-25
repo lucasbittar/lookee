@@ -1,6 +1,7 @@
 package com.lookee.tv.ui.discover
 
 import androidx.compose.foundation.Canvas
+import com.lookee.tv.ui.navigation.LocalNavInset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -161,7 +162,7 @@ fun DiscoverScreen() {
             }
             return@Box
         }
-        Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().padding(top = LocalNavInset.current)) {
         ScreenHeader(
             CategoryLook.Discover.kicker, "Discover", violet, MaterialTheme.typography.displayMedium,
             Modifier.padding(start = ScreenInset, end = ScreenInset, top = 16.dp, bottom = 20.dp),

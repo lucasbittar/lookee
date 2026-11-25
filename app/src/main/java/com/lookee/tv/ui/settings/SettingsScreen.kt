@@ -1,6 +1,7 @@
 package com.lookee.tv.ui.settings
 
 import androidx.compose.runtime.withFrameNanos
+import com.lookee.tv.ui.navigation.LocalNavInset
 import kotlinx.coroutines.launch
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,7 +53,7 @@ fun SettingsScreen() {
     val scope = rememberCoroutineScope()
     LazyColumn(
         state = list,
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().padding(top = LocalNavInset.current),
         contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
