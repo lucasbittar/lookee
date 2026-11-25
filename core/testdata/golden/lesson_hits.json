@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Lesson 03.mp4",
+    "path": "/storage/emulated/0/Download/Lessons/Solo/Lesson 03.mp4",
+    "isDir": false,
+    "size": 1000000,
+    "modTime": 1700000000,
+    "hasSubtitle": true,
+    "folder": "Solo",
+    "positionMs": 30000,
+    "durationMs": 600000
+  },
+  {
+    "name": "Solo",
+    "path": "/storage/emulated/0/Download/Lessons/Solo",
+    "isDir": true,
+    "modTime": 1700000000,
+    "folder": ""
+  }
+]

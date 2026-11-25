@@ -260,6 +260,22 @@ data class FolderEntry(
     val durationMs: Long = 0,
 )
 
+/** A Tutorials search hit: a folder or video, with [folder] its parent relative to the lessons folder. */
+@Serializable
+data class LessonHit(
+    val name: String = "",
+    val path: String = "",
+    val isDir: Boolean = false,
+    val size: Long = 0,
+    val modTime: Long = 0,
+    val hasSubtitle: Boolean = false,
+    val folder: String = "",
+    val positionMs: Long = 0,
+    val durationMs: Long = 0,
+) {
+    fun asEntry() = FolderEntry(name, path, isDir, size, modTime, hasSubtitle, positionMs, durationMs)
+}
+
 @Serializable
 data class PlaybackProgress(
     val key: String = "",

@@ -40,7 +40,7 @@
 | Settings | `getSettings`, `setSetting(key, value)`, `startRemoteSetup(host, cb)`, `stopRemoteSetup` |
 | Library roots | `listRoots`, `addRoot(path, category)`, `removeRoot(id)`, `listStorageVolumes` |
 | Scan | `startScan(cb)`, `cancelScan` |
-| Library | `listMedia(category, offset, limit)`, `getRecentlyAdded(limit)`, `getMediaDetails(id)`, `searchMatchCandidates(id, query, kind)`, `rebindTMDB(id, kind, tmdbId)`, `searchAndRebindTMDB(id, query)`, `browseFolder(path)` |
+| Library | `listMedia(category, offset, limit)`, `getRecentlyAdded(limit)`, `getMediaDetails(id)`, `searchMatchCandidates(id, query, kind)`, `rebindTMDB(id, kind, tmdbId)`, `searchAndRebindTMDB(id, query)`, `browseFolder(path)`, `searchLessons(query)` |
 | Progress | `saveProgress(key, titleId, positionMs, durationMs)`, `getContinueWatching(limit)` |
 | Subtitles | `findSidecarSubtitles(videoPath)`, `searchSubtitles(requestJson)`, `downloadSubtitle(fileId)`, `shiftSubtitle(path, offsetMs)` |
 | Discover | `getTrending(kind)`, `searchTMDB(query, kind)`, `searchTorrents(kind, tmdbId, season, episode)`, `searchTorrentsText(kind, text)` |

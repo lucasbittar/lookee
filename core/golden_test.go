@@ -74,6 +74,11 @@ func goldenDTOs() map[string]any {
 			{Entry: scanner.Entry{Name: "solo.mp4", Path: "/storage/emulated/0/Download/Lessons/solo.mp4", Size: 1_000_000, ModTime: 1700000000, Subtitle: true},
 				PositionMS: 30_000, DurationMS: 600_000},
 		},
+		"lesson_hits": []engine.LessonHit{
+			{Hit: scanner.Hit{Entry: scanner.Entry{Name: "Lesson 03.mp4", Path: "/storage/emulated/0/Download/Lessons/Solo/Lesson 03.mp4",
+				Size: 1_000_000, ModTime: 1700000000, Subtitle: true}, Folder: "Solo"}, PositionMS: 30_000, DurationMS: 600_000},
+			{Hit: scanner.Hit{Entry: scanner.Entry{Name: "Solo", Path: "/storage/emulated/0/Download/Lessons/Solo", IsDir: true, ModTime: 1700000000}}},
+		},
 		"progress":  []db.Progress{{Key: file.Path, TitleID: 7, PositionMS: 60_000, DurationMS: 10_200_000, UpdatedAt: 1764000200}},
 		"sidecars":  []subtitles.Sidecar{{Path: "/movies/Heat.pt-BR.srt", Name: "Heat.pt-BR.srt", Language: "pt-BR", Format: "srt"}},
 		"subtitles": []subtitles.Result{{FileID: 123, FileName: "Heat.1995.srt", Language: "pt-BR", Release: "Heat.1995.1080p.BluRay", Downloads: 5000, Rating: 8.5, HearingImpaired: true, HashMatch: true, Trusted: true}},

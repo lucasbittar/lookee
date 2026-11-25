@@ -37,6 +37,7 @@ class BridgeContractTest {
         "home" to HomeView.serializer(),
         "series" to SeriesView.serializer(),
         "browse" to ListSerializer(FolderEntry.serializer()),
+        "lesson_hits" to ListSerializer(LessonHit.serializer()),
         "progress" to ListSerializer(PlaybackProgress.serializer()),
         "sidecars" to ListSerializer(SidecarSubtitle.serializer()),
         "subtitles" to ListSerializer(SubtitleResult.serializer()),

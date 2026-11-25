@@ -135,6 +135,8 @@ class GoCoreBridge(
 
     suspend fun browse(path: String): List<FolderEntry> = get { Lookeecore.browseFolder(path) }
 
+    suspend fun searchLessons(query: String): List<LessonHit> = get { Lookeecore.searchLessons(query) }
+
     // ---- progress ----
 
     suspend fun saveProgress(key: String, titleId: Long, positionMs: Long, durationMs: Long) =

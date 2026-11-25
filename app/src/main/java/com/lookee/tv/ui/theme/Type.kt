@@ -49,20 +49,9 @@ val LookeeTypography = Typography(
     labelSmall = style(13, FontWeight.SemiBold, 0.08),
 )
 
-// Category faces (docs/DESIGN.md): Movies' title in Fraunces, artist names in Bebas Neue,
-// Tutorials' numbers and Discover's stats in JetBrains Mono. Fraunces and JetBrains Mono are
-// variable fonts; Android 8+ picks the weight from the variation settings.
-@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
-val Fraunces = FontFamily(
-    Font(
-        R.font.fraunces_variable,
-        weight = FontWeight.Bold,
-        variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(
-            androidx.compose.ui.text.font.FontVariation.weight(700),
-        ),
-    ),
-)
-
+// Category faces (docs/DESIGN.md): artist names on concert cards in Bebas Neue, Tutorials'
+// numbers and Discover's stats in JetBrains Mono (a variable font; Android 8+ picks the
+// weight from the variation settings). Headings are Inter everywhere.
 val BebasNeue = FontFamily(Font(R.font.bebas_neue_regular))
 
 @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)

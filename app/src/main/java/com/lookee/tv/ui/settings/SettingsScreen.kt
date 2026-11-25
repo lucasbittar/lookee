@@ -48,14 +48,6 @@ fun SettingsScreen() {
     val vm = viewModel { SettingsViewModel(app.core, app) }
     val state by vm.state.collectAsStateWithLifecycle()
 
-    Column(Modifier.fillMaxSize()) {
-    // The heading stays put; only the cards scroll under it.
-    Text(
-        "Settings",
-        style = MaterialTheme.typography.displaySmall,
-        color = LookeeColors.Text,
-        modifier = Modifier.padding(start = 48.dp, top = 16.dp, bottom = 8.dp),
-    )
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
     LazyColumn(
@@ -64,6 +56,10 @@ fun SettingsScreen() {
         contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
+        // The heading scrolls with the cards.
+        item {
+            Text("Settings", style = MaterialTheme.typography.displaySmall, color = LookeeColors.Text)
+        }
         state.error?.let { item { Alert("The core reported a problem: $it") } }
         item {
             // Scrolling following focus would park the card's button at the top and hide the
@@ -86,7 +82,6 @@ fun SettingsScreen() {
         item {
             DiagnosticsCard(state, onRefresh = vm::refresh)
         }
-    }
     }
 }
 

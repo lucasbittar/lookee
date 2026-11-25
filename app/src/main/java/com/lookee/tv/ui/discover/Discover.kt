@@ -74,6 +74,7 @@ import com.lookee.tv.ui.components.RowPadding
 import com.lookee.tv.ui.components.RowTitle
 import com.lookee.tv.ui.components.ScreenInset
 import com.lookee.tv.ui.components.ScreenHeader
+import com.lookee.tv.ui.components.SearchField
 import com.lookee.tv.ui.components.bytes
 import com.lookee.tv.ui.navigation.Destination
 import com.lookee.tv.ui.navigation.LocalNavigator
@@ -164,7 +165,7 @@ fun DiscoverScreen() {
         ScreenHeader(
             CategoryLook.Discover.kicker, "Discover", violet, MaterialTheme.typography.displayMedium,
             Modifier.padding(start = ScreenInset, end = ScreenInset, top = 16.dp, bottom = 20.dp),
-            trailing = { SearchField(state.query, vm::setQuery, Modifier.width(420.dp)) },
+            trailing = { SearchField(state.query, vm::setQuery, "Search movies, shows and concerts", Modifier.width(420.dp)) },
         )
         LazyColumn(contentPadding = PaddingValues(top = 8.dp, bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(32.dp)) {
             val results = state.results
@@ -177,29 +178,6 @@ fun DiscoverScreen() {
             }
         }
         }
-    }
-}
-
-@Composable
-private fun SearchField(value: String, onChange: (String) -> Unit, modifier: Modifier) {
-    var focused by remember { mutableStateOf(false) }
-    Box(
-        modifier
-            .clip(RoundedCornerShape(50))
-            .background(LookeeColors.Surface)
-            .border(if (focused) 2.dp else 1.dp, if (focused) LookeeColors.Accent else LookeeColors.Line, RoundedCornerShape(50))
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-    ) {
-        if (value.isEmpty()) Text("Search movies, shows and concerts", style = MaterialTheme.typography.bodyMedium, color = LookeeColors.Muted)
-        BasicTextField(
-            value = value,
-            onValueChange = onChange,
-            singleLine = true,
-            textStyle = TextStyle(color = LookeeColors.Text, fontSize = 16.sp),
-            cursorBrush = SolidColor(LookeeColors.Accent),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
-        )
     }
 }
 

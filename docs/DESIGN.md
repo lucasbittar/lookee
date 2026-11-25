@@ -93,15 +93,21 @@ The user's rule: no empty cards. TMDB artwork comes first. Otherwise (lessons, p
 
 | Category | Mood | Tint (ambient glow and labels only) | Layout | Type |
 |---|---|---|---|---|
-| Movies | "Cinema", like a projector beam | Accent yellow | A poster wall (2:3, seven across) with sort chips | The "Movies" title in Fraunces (serif) |
+| Movies | "Cinema", like a projector beam | Accent yellow | A poster wall (2:3, seven across) with one "Sort · …" button that cycles the order | Inter |
 | Series | "Up next" | Blue `#6E9CF5` | Wide cards with the next episode, plus per-episode season progress segments | Inter |
-| Concerts | "Live", like stage lights | Rose `#E8608C` | Large gig-poster cards with the artist name over the image, Blu-ray/DVD/ISO badges, and "More artists" chips | Artist names in Bebas Neue |
+| Concerts | "Live", like stage lights | Rose `#E8608C` | Large gig-poster cards with the artist name over the image, Blu-ray/DVD/ISO badges, and "More artists" chips | Artist names on the cards in Bebas Neue |
 | Tutorials | "Workshop", like a notebook | Teal `#4FC3D9` | No posters: folders on the left, numbered lessons on the right with duration, progress and a CC badge | Lesson numbers and paths in JetBrains Mono |
 | Discover | "Stream", like a signal | Violet `#9B7BF0` | Search first, then trending rows. A "Stream" badge marks titles to stream, and "On your drive" marks titles you already have. Picking a title lists streams best first (quality badge, one-line release name, size, seeder signal bars). Buffering is a full screen with a ring, three plain steps and live speed/peers | Sizes and stats in JetBrains Mono |
+
+**Screen headings (revised 2026-11-25):** every category heading is the same stack, with the kicker in the category tint ("NOW SHOWING", "UP NEXT", "LIVE", "WORKSHOP", "STREAM") above the title in Inter. The categories differ in mood, layout and card type, not in heading fonts. Headings stay pinned on Movies, Series, Tutorials and Discover, where the content is a grid or rows that scroll under them. On Concerts and Settings they scroll away with the content.
+
+**Search:** each media screen has a search box at the right of its heading. It's a pill on the D-pad, so passing over it doesn't open the keyboard. OK turns it into a text field. The keyboard's Search key, Back or Down return to the pill, and **Clear** appears beside it while a search is active.
+- Movies, Series and Concerts filter the titles already on screen, live, ignoring case and accents.
+- Tutorials searches every lessons folder through the core (`searchLessons`). Each hit shows its folder underneath, and OK on a folder opens it.
 
 ## Still to decide in the design pass
 
 The token set above is settled. Still open:
 
 - backdrop treatment (gradient scrim strength);
-- nothing: Discover was approved on 2026-11-25, which completes the design. Fraunces, Bebas Neue and JetBrains Mono are bundled like Inter (all OFL).
+- nothing: Discover was approved on 2026-11-25, which completes the design. Bebas Neue and JetBrains Mono are bundled like Inter (all OFL). Fraunces was dropped when headings went back to Inter.

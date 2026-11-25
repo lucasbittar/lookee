@@ -612,6 +612,48 @@ func (e *Engine) Browse(ctx context.Context, path string) ([]BrowseEntry, error)
 	return out, nil
 }
 
+// LessonHit is a Tutorials search hit: a folder or video, with progress like a browse entry.
+type LessonHit struct {
+	scanner.Hit
+	PositionMS int64 `json:"positionMs,omitempty"`
+	DurationMS int64 `json:"durationMs,omitempty"`
+}
+
+// maxLessonHits caps a Tutorials search; a short list is all a TV screen can show anyway.
+const maxLessonHits = 200
+
+// SearchLessons searches every Tutorials folder on the drive by name (scanner.Search).
+// Folders that aren't mounted are skipped.
+func (e *Engine) SearchLessons(ctx context.Context, query string) ([]LessonHit, error) {
+	roots, err := e.store.Roots(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := []LessonHit{}
+	for _, r := range roots {
+		if r.Category != db.Tutorials || len(out) >= maxLessonHits {
+			continue
+		}
+		if _, err := os.Stat(r.Path); err != nil {
+			continue
+		}
+		hits, err := scanner.Search(ctx, r.Path, query, maxLessonHits-len(out))
+		if err != nil {
+			return nil, err
+		}
+		for _, h := range hits {
+			lh := LessonHit{Hit: h}
+			if !h.IsDir {
+				if p, err := e.store.GetProgress(ctx, h.Path); err == nil {
+					lh.PositionMS, lh.DurationMS = p.PositionMS, p.DurationMS
+				}
+			}
+			out = append(out, lh)
+		}
+	}
+	return out, nil
+}
+
 // ---- playback progress ----
 
 // SaveProgress records the playback position for a file path or stream key.

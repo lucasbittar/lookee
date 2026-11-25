@@ -373,6 +373,12 @@ func BrowseFolder(path string) (string, error) {
 	return call(func(ctx context.Context, e *engine.Engine) (any, error) { return e.Browse(ctx, path) })
 }
 
+// SearchLessons finds folders and videos in every Tutorials folder whose path contains each
+// word of query (case and accents ignored). JSON: an array of lesson hits.
+func SearchLessons(query string) (string, error) {
+	return call(func(ctx context.Context, e *engine.Engine) (any, error) { return e.SearchLessons(ctx, query) })
+}
+
 // ---- progress ----
 
 // SaveProgress records the playback position of a file path or stream key.

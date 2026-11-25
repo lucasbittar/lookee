@@ -71,6 +71,9 @@ import com.lookee.tv.ui.components.RowPadding
 import com.lookee.tv.ui.components.RowTitle
 import com.lookee.tv.ui.components.ScreenInset
 import com.lookee.tv.ui.components.ScreenHeader
+import com.lookee.tv.ui.components.SearchField
+import com.lookee.tv.ui.components.ClearSearch
+import com.lookee.tv.ui.components.matchesQuery
 import com.lookee.tv.ui.components.StillCard
 import com.lookee.tv.ui.components.clock
 import com.lookee.tv.ui.components.progressOf
@@ -82,12 +85,13 @@ import com.lookee.tv.ui.navigation.Route
 import com.lookee.tv.ui.theme.BebasNeue
 import com.lookee.tv.ui.theme.CategoryGlow
 import com.lookee.tv.ui.theme.CategoryLook
-import com.lookee.tv.ui.theme.Fraunces
 import com.lookee.tv.ui.theme.JetBrainsMono
 import com.lookee.tv.ui.theme.LookeeColors
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import com.lookee.tv.data.LessonHit
 
 /** Loads something from the core and reloads whenever the library changes. */
 class Loader<T>(library: LibrarySync, initial: T, private val load: suspend () -> T) : ViewModel() {
@@ -127,6 +131,22 @@ private fun EmptyLibrary(title: String, body: String) {
     }
 }
 
+/** The search box in a screen header, with Clear beside it while a search is active. */
+@Composable
+private fun SearchRow(query: String, onChange: (String) -> Unit, placeholder: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        SearchField(query, onChange, placeholder, Modifier.width(340.dp))
+        if (query.isNotEmpty()) ClearSearch { onChange("") }
+    }
+}
+
+@Composable
+private fun NoMatches(text: String, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.TopCenter) {
+        Text(text, style = MaterialTheme.typography.titleMedium, color = LookeeColors.Muted)
+    }
+}
+
 // ---- Movies: "Cinema" ----
 
 private enum class MovieSort(val label: String) { Recent("Recently added"), Az("A–Z"), Year("Year") }
@@ -136,18 +156,20 @@ fun MoviesScreen() {
     val state = rememberLoader("movies", emptyList<MediaTitle>()) { it.libraryView("movies") }
     val nav = LocalNavigator.current
     var sort by rememberSaveable { mutableStateOf(MovieSort.Recent) }
-    val movies = remember(state.data, sort) {
+    var query by rememberSaveable { mutableStateOf("") }
+    val movies = remember(state.data, sort, query) {
+        val found = state.data.filter { matchesQuery(it.title, query) }
         when (sort) {
-            MovieSort.Recent -> state.data.sortedByDescending { it.addedAt }
-            MovieSort.Az -> state.data.sortedBy { it.title.lowercase() }
-            MovieSort.Year -> state.data.sortedByDescending { it.year }
+            MovieSort.Recent -> found.sortedByDescending { it.addedAt }
+            MovieSort.Az -> found.sortedBy { it.title.lowercase() }
+            MovieSort.Year -> found.sortedByDescending { it.year }
         }
     }
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(360.dp)) {
             CategoryGlow(CategoryLook.Movies, Offset(960f, -200f), radius = 1100f)
         }
-        if (!state.loading && movies.isEmpty()) {
+        if (!state.loading && state.data.isEmpty()) {
             EmptyLibrary("No movies yet", "Add your Movies folder in Settings and lookee will fetch posters and details.")
             return@Box
         }
@@ -156,16 +178,21 @@ fun MoviesScreen() {
             kicker = CategoryLook.Movies.kicker,
             title = "Movies",
             tint = CategoryLook.Movies.tint,
-            titleStyle = MaterialTheme.typography.displayMedium.copy(fontFamily = Fraunces, fontWeight = FontWeight.Bold),
+            titleStyle = MaterialTheme.typography.displayMedium,
             modifier = Modifier.padding(start = ScreenInset, end = ScreenInset, top = 16.dp, bottom = 16.dp),
             trailing = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MovieSort.entries.forEach { s ->
-                        LookeeButton(s.label, onClick = { sort = s }, style = if (s == sort) ButtonStyle.Primary else ButtonStyle.Quiet)
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SearchField(query, { query = it }, "Search movies", Modifier.width(320.dp))
+                    if (query.isNotEmpty()) ClearSearch { query = "" }
+                    // One button that cycles the order: three chips crowded the search box.
+                    LookeeButton("Sort · ${sort.label}", onClick = { sort = MovieSort.entries[(sort.ordinal + 1) % MovieSort.entries.size] }, style = ButtonStyle.Quiet)
                 }
             },
         )
+        if (movies.isEmpty()) {
+            NoMatches("No movies match “$query”")
+            return@Column
+        }
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
             contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 48.dp),
@@ -195,6 +222,9 @@ fun SeriesScreen() {
     val state = rememberLoader("series", SeriesView()) { it.series() }
     val nav = LocalNavigator.current
     val look = CategoryLook.Series
+    var query by rememberSaveable { mutableStateOf("") }
+    val searching = query.isNotBlank()
+    val shows = remember(state.data, query) { state.data.all.filter { matchesQuery(it.title, query) } }
     Box(Modifier.fillMaxSize()) {
         CategoryGlow(look, Offset(1700f, -100f))
         if (!state.loading && state.data.all.isEmpty()) {
@@ -202,9 +232,17 @@ fun SeriesScreen() {
             return@Box
         }
         Column(Modifier.fillMaxSize()) {
-        ScreenHeader(look.kicker, "Series", look.tint, MaterialTheme.typography.displayMedium, Modifier.padding(start = ScreenInset, end = ScreenInset, top = 16.dp, bottom = 20.dp))
+        ScreenHeader(
+            look.kicker, "Series", look.tint, MaterialTheme.typography.displayMedium,
+            Modifier.padding(start = ScreenInset, end = ScreenInset, top = 16.dp, bottom = 20.dp),
+            trailing = { SearchRow(query, { query = it }, "Search shows") },
+        )
+        if (searching && shows.isEmpty()) {
+            NoMatches("No shows match “$query”")
+            return@Column
+        }
         LazyColumn(contentPadding = PaddingValues(top = 8.dp, bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(32.dp)) {
-            if (state.data.inProgress.isNotEmpty()) {
+            if (!searching && state.data.inProgress.isNotEmpty()) {
                 item {
                     LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(20.dp), contentPadding = RowPadding) {
                         items(state.data.inProgress, key = { it.id }) { show -> UpNextCard(show, look.tint) { nav.push(Route.Details(show.id)) } }
@@ -213,9 +251,9 @@ fun SeriesScreen() {
             }
             item {
                 Column {
-                    RowTitle("All shows", inset = ScreenInset)
+                    RowTitle(if (searching) "Results" else "All shows", inset = ScreenInset)
                     LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = RowPadding) {
-                        items(state.data.all, key = { it.id }) { show ->
+                        items(shows, key = { it.id }) { show ->
                             StillCard(
                                 title = show.title,
                                 caption = if (show.total > 0) "Season ${show.progressSeason} · ${show.watched} of ${show.total} watched" else show.year.takeIf { it > 0 }?.toString().orEmpty(),
@@ -273,6 +311,7 @@ fun ConcertsScreen() {
     val state = rememberLoader("concerts", emptyList<MediaTitle>()) { it.libraryView("concerts") }
     val nav = LocalNavigator.current
     val look = CategoryLook.Concerts
+    var query by rememberSaveable { mutableStateOf("") }
     Box(Modifier.fillMaxSize().background(Color(0xFF0B0A0E))) {
         // Two stage lights.
         Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(look.tint.copy(alpha = 0.16f), Color.Transparent), center = Offset(380f, -80f), radius = 900f)))
@@ -281,35 +320,46 @@ fun ConcertsScreen() {
             EmptyLibrary("No concerts yet", "Concert films in your Movies folder show up here automatically, or add a Concerts folder in Settings.")
             return@Box
         }
-        Column(Modifier.fillMaxSize()) {
-                Row(Modifier.padding(start = ScreenInset, top = 8.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("Concerts", fontFamily = BebasNeue, fontSize = 64.sp, color = LookeeColors.Text)
-                    Row(
-                        Modifier.clip(RoundedCornerShape(50)).background(look.tint.copy(alpha = 0.16f)).padding(horizontal = 10.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(look.tint))
-                        Text("LIVE", style = MaterialTheme.typography.labelMedium, color = look.tint)
-                    }
-                }
+        val found = remember(state.data, query) { state.data.filter { matchesQuery(it.title, query) } }
+        // The heading scrolls away with the rows: with big gig cards, every pixel counts.
         LazyColumn(contentPadding = PaddingValues(bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(32.dp)) {
-            // Featured: the newest additions as big gig-poster cards.
             item {
-                LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(20.dp), contentPadding = RowPadding) {
-                    items(state.data.sortedByDescending { it.addedAt }.take(12), key = { it.id }) { c -> GigCard(c) { nav.push(Route.Details(c.id)) } }
-                }
+                ScreenHeader(
+                    look.kicker, "Concerts", look.tint, MaterialTheme.typography.displayMedium,
+                    Modifier.padding(start = ScreenInset, end = ScreenInset, top = 16.dp),
+                    trailing = { SearchRow(query, { query = it }, "Search concerts") },
+                )
             }
-            // Everything, A–Z, as name tags: quick to scan with fifty-plus concerts.
-            item {
-                Column {
-                    RowTitle("All concerts", inset = ScreenInset)
-                    LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = RowPadding) {
-                        items(state.data, key = { it.id }) { c -> ArtistChip(c.title) { nav.push(Route.Details(c.id)) } }
+            if (query.isNotBlank()) {
+                item {
+                    if (found.isEmpty()) {
+                        NoMatches("No concerts match “$query”", Modifier.padding(top = 80.dp))
+                    } else {
+                        Column {
+                            RowTitle("Results", inset = ScreenInset)
+                            LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(20.dp), contentPadding = RowPadding) {
+                                items(found, key = { it.id }) { c -> GigCard(c) { nav.push(Route.Details(c.id)) } }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Featured: the newest additions as big gig-poster cards.
+                item {
+                    LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(20.dp), contentPadding = RowPadding) {
+                        items(state.data.sortedByDescending { it.addedAt }.take(12), key = { it.id }) { c -> GigCard(c) { nav.push(Route.Details(c.id)) } }
+                    }
+                }
+                // Everything, A–Z, as name tags: quick to scan with fifty-plus concerts.
+                item {
+                    Column {
+                        RowTitle("All concerts", inset = ScreenInset)
+                        LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(12.dp), contentPadding = RowPadding) {
+                            items(state.data, key = { it.id }) { c -> ArtistChip(c.title) { nav.push(Route.Details(c.id)) } }
+                        }
                     }
                 }
             }
-        }
         }
     }
 }
@@ -359,6 +409,18 @@ fun TutorialsScreen() {
     val current = trail.lastOrNull()
     val listing = rememberLoader("browse:${current.orEmpty()}", emptyList<FolderEntry>()) { core -> if (current == null) emptyList() else core.browse(current) }
     val nav = LocalNavigator.current
+    // Search covers every lessons folder, not just the open one, so it runs in the core.
+    var query by rememberSaveable { mutableStateOf("") }
+    val app = LookeeApp.from(LocalContext.current)
+    var hits by remember { mutableStateOf<List<LessonHit>?>(null) }
+    LaunchedEffect(query) {
+        if (query.isBlank()) {
+            hits = null
+            return@LaunchedEffect
+        }
+        delay(250) // typing on a TV keyboard is slow; wait for a pause
+        hits = runCatching { app.core.searchLessons(query) }.getOrDefault(emptyList())
+    }
     // Entering a folder replaces the rows, so put focus on the first lesson (or folder) of
     // the new listing instead of letting it fall back to the tabs.
     val firstLesson = remember { FocusRequester() }
@@ -383,13 +445,30 @@ fun TutorialsScreen() {
             }
         }
         Column(Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 16.dp)) {
-            Text(
-                trail.map { it.substringAfterLast('/') }.ifEmpty { listOf("All lesson folders") }.joinToString(" / "),
-                fontFamily = JetBrainsMono,
-                fontSize = 13.sp,
-                color = look.tint,
-            )
-            Text("Tutorials", style = MaterialTheme.typography.displayMedium, color = LookeeColors.Text, modifier = Modifier.padding(bottom = 20.dp))
+            Row(Modifier.fillMaxWidth().padding(bottom = 20.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text(
+                        trail.map { it.substringAfterLast('/') }.ifEmpty { listOf("All lesson folders") }.joinToString(" / "),
+                        fontFamily = JetBrainsMono,
+                        fontSize = 13.sp,
+                        color = look.tint,
+                    )
+                    Text("Tutorials", style = MaterialTheme.typography.displayMedium, color = LookeeColors.Text)
+                }
+                SearchRow(query, { query = it }, "Search all lessons")
+            }
+            val results = hits
+            if (query.isNotBlank()) {
+                LessonResults(results, query, look.tint, onFolder = { hit ->
+                    // Open the folder: the trail is every folder from its lessons root down to it.
+                    val root = roots.data.firstOrNull { hit.path.startsWith(it.path + "/") } ?: return@LessonResults
+                    val parts = hit.path.removePrefix(root.path + "/").split('/')
+                    trail = listOf(root.path) + parts.indices.map { i -> root.path + "/" + parts.take(i + 1).joinToString("/") }
+                    entered = true
+                    query = ""
+                }, onLesson = { nav.toast("The player arrives in the next build.") })
+                return@Column
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                 LazyColumn(Modifier.width(240.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     item { RowTitle("Folders") }
@@ -413,19 +492,42 @@ fun TutorialsScreen() {
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun FolderRow(name: String, tint: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    MediaSurface(onClick = onClick, modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }, shape = RoundedCornerShape(10.dp), focusedScale = 1.03f) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.size(width = 16.dp, height = 12.dp).clip(RoundedCornerShape(3.dp)).border(2.dp, if (focused) tint else LookeeColors.Muted, RoundedCornerShape(3.dp)))
-            MarqueeText(name, MaterialTheme.typography.titleSmall, LookeeColors.Text, active = focused)
+private fun LessonResults(hits: List<LessonHit>?, query: String, tint: Color, onFolder: (LessonHit) -> Unit, onLesson: (LessonHit) -> Unit) {
+    when {
+        hits == null -> Text("Searching…", style = MaterialTheme.typography.titleMedium, color = LookeeColors.Muted)
+        hits.isEmpty() -> NoMatches("No lessons match “$query”")
+        else -> LazyColumn(Modifier.focusRestorer(), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 48.dp)) {
+            item { RowTitle(if (hits.size == 1) "1 result" else "${hits.size} results") }
+            var lessonNo = 0
+            items(hits, key = { it.path }) { hit ->
+                if (hit.isDir) {
+                    FolderRow(hit.name, tint, caption = hit.folder) { onFolder(hit) }
+                } else {
+                    LessonRow(++lessonNo, hit.asEntry(), tint, caption = hit.folder) { onLesson(hit) }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun LessonRow(number: Int, lesson: FolderEntry, tint: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun FolderRow(name: String, tint: Color, modifier: Modifier = Modifier, caption: String = "", onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    MediaSurface(onClick = onClick, modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }, shape = RoundedCornerShape(10.dp), focusedScale = 1.03f) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.size(width = 16.dp, height = 12.dp).clip(RoundedCornerShape(3.dp)).border(2.dp, if (focused) tint else LookeeColors.Muted, RoundedCornerShape(3.dp)))
+            Column {
+                MarqueeText(name, MaterialTheme.typography.titleSmall, LookeeColors.Text, active = focused)
+                if (caption.isNotEmpty()) MarqueeText(caption, MaterialTheme.typography.bodySmall.copy(fontFamily = JetBrainsMono), LookeeColors.Muted, active = focused)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LessonRow(number: Int, lesson: FolderEntry, tint: Color, modifier: Modifier = Modifier, caption: String = "", onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     val done = lesson.durationMs > 0 && lesson.positionMs >= lesson.durationMs * 0.95
     MediaSurface(onClick = onClick, modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }, shape = RoundedCornerShape(10.dp), focusedScale = 1.02f) {
@@ -435,6 +537,7 @@ private fun LessonRow(number: Int, lesson: FolderEntry, tint: Color, modifier: M
             PreviewImage("", lesson.path, Modifier.width(96.dp).height(54.dp).clip(RoundedCornerShape(7.dp)))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 MarqueeText(lesson.name.substringBeforeLast('.'), MaterialTheme.typography.titleSmall, LookeeColors.Text, active = focused)
+                if (caption.isNotEmpty()) MarqueeText(caption, MaterialTheme.typography.bodySmall.copy(fontFamily = JetBrainsMono), LookeeColors.Muted, active = focused)
                 if (!done) progressOf(lesson.positionMs, lesson.durationMs)?.let { ProgressLine(it, Modifier.width(200.dp), height = 3.dp) }
             }
             if (lesson.hasSubtitle) {
