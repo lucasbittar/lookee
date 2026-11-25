@@ -1,0 +1,9 @@
+[
+  {
+    "path": "/storage/emulated/0",
+    "label": "Internal storage",
+    "removable": false,
+    "freeBytes": 20000000000,
+    "totalBytes": 1000000000000
+  }
+]

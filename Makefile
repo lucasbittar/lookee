@@ -36,7 +36,7 @@ test:
 lint:
 	cd core && go vet ./... && $(GOLANGCI_LINT) run ./...
 
-## cli: build the local harness to core/lookee-cli core/lookee-cli-android
+## cli: build the local harness to core/lookee-cli
 cli:
 	cd core && go build -o lookee-cli ./cmd/lookee-cli
 

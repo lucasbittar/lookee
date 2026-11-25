@@ -1,0 +1,18 @@
+{
+  "results": [
+    {
+      "provider": "yts",
+      "title": "Heat (1995) 1080p",
+      "quality": "1080p",
+      "size": 2000000000,
+      "seeders": 120,
+      "peers": 30,
+      "infoHash": "08ada5a7a6183aae1e09d831df6748d566095a10",
+      "magnet": "magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df6748d566095a10",
+      "fileIndex": -1
+    }
+  ],
+  "warnings": [
+    "eztv: timeout"
+  ]
+}

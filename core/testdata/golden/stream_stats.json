@@ -1,0 +1,15 @@
+{
+  "state": "ready",
+  "name": "Sintel",
+  "fileName": "Sintel.mp4",
+  "size": 129241752,
+  "downloaded": 30000000,
+  "speedBps": 4800000,
+  "peers": 11,
+  "seeders": 10,
+  "bufferPercent": 100,
+  "url": "http://127.0.0.1:33569/stream",
+  "elapsedSeconds": 12,
+  "fileIndex": 1,
+  "videoFiles": 1
+}

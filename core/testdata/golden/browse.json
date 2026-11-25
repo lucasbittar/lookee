@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Lesson 2",
+    "path": "/storage/emulated/0/Download/Lessons/Lesson 2",
+    "isDir": true,
+    "modTime": 1700000000
+  },
+  {
+    "name": "solo.mp4",
+    "path": "/storage/emulated/0/Download/Lessons/solo.mp4",
+    "isDir": false,
+    "size": 1000000,
+    "modTime": 1700000000,
+    "hasSubtitle": true
+  }
+]

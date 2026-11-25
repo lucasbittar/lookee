@@ -1,0 +1,21 @@
+{
+  "phase": "finished",
+  "matched": 9,
+  "report": {
+    "roots": [
+      {
+        "rootId": 1,
+        "root": "/storage/emulated/0/Download/Movies",
+        "unavailable": true,
+        "seen": 120,
+        "added": 9,
+        "updated": 1,
+        "removed": 2
+      }
+    ],
+    "matched": 9,
+    "unmatched": 1,
+    "needsApiKey": true,
+    "matchError": "TMDB rejected the API key"
+  }
+}
