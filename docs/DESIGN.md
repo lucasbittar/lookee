@@ -79,7 +79,13 @@ The mockups live on the [layouts canvas](https://claude.ai/artifact/VpFhyAz42B5Q
 - **Row spacing.** There are at least 32 dp (64 px at 1080p) between the bottom of a row, including the captions under its cards, and the next row's label. That way a focused card's scale and glow never touch the next row. This was the user's one note on the first mockup.
 - **Each category gets its own look** (see below). Focus is the same yellow everywhere, so the remote always feels the same.
 
-## Category looks (proposal, awaiting approval)
+## One line per label (agreed 2026-11-25)
+
+- **Card titles and captions never wrap.** At rest they're cut with an ellipsis. When the card is focused, overflowing text scrolls back and forth as a marquee: it starts after a short pause, slowly (about 30 dp/s), with a soft fade at the edge it scrolls toward. In Compose this is `Modifier.basicMarquee()`, enabled only while focused.
+- **Big titles (Home banner, Details) stay on one line.** They shrink to fit, down to 36 dp, and use the marquee only if they still don't fit.
+- **Synopses are the exception.** They're prose, so they clamp: 2 lines on the Home banner and episode rows, 3 on Details.
+
+## Category looks (approved 2026-11-25)
 
 | Category | Mood | Tint (ambient glow and labels only) | Layout | Type |
 |---|---|---|---|---|
@@ -87,10 +93,11 @@ The mockups live on the [layouts canvas](https://claude.ai/artifact/VpFhyAz42B5Q
 | Series | "Up next" | Blue `#6E9CF5` | Wide cards with the next episode, plus per-episode season progress segments | Inter |
 | Concerts | "Live", like stage lights | Rose `#E8608C` | Large gig-poster cards with the artist name over the image, Blu-ray/DVD/ISO badges, and "More artists" chips | Artist names in Bebas Neue |
 | Tutorials | "Workshop", like a notebook | Teal `#4FC3D9` | No posters: folders on the left, numbered lessons on the right with duration, progress and a CC badge | Lesson numbers and paths in JetBrains Mono |
+| Discover *(proposal)* | "Stream", like a signal | Violet `#9B7BF0` | Search first, then trending rows. A "Stream" badge marks titles to stream, and "On your drive" marks titles you already have. Picking a title lists streams best first (quality badge, one-line release name, size, seeder signal bars). Buffering is a full screen with a ring, three plain steps and live speed/peers | Sizes and stats in JetBrains Mono |
 
 ## Still to decide in the design pass
 
 The token set above is settled. Still open:
 
 - backdrop treatment (gradient scrim strength);
-- final approval of the category looks above (then their fonts get bundled like Inter).
+- approval of the Discover look; after that, Fraunces, Bebas Neue and JetBrains Mono get bundled like Inter (all OFL).
