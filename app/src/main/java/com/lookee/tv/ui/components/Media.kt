@@ -1,5 +1,8 @@
 package com.lookee.tv.ui.components
 
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -89,26 +92,32 @@ fun FitText(
     modifier: Modifier = Modifier,
     minSize: TextUnit = 36.sp,
 ) {
-    var size by remember(text) { mutableStateOf(style.fontSize) }
-    var scroll by remember(text) { mutableStateOf(false) }
-    Text(
-        text = text,
-        style = style.copy(fontSize = size, lineHeight = size * 1.1f),
-        color = color,
-        maxLines = 1,
-        softWrap = false,
-        overflow = if (scroll) TextOverflow.Clip else TextOverflow.Ellipsis,
-        modifier = if (scroll) {
-            modifier.basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 1500, repeatDelayMillis = 2000, velocity = 30.dp)
-        } else {
-            modifier
-        },
-        onTextLayout = { layout ->
-            if (layout.hasVisualOverflow) {
-                if (size > minSize) size = maxOf(minSize.value, size.value - 4f).sp else scroll = true
-            }
-        },
-    )
+    // The size is worked out before drawing, from the space available, so the first frame is
+    // already right. (Shrinking after each layout pass showed the title big for a few frames.)
+    BoxWithConstraints(modifier) {
+        val measurer = rememberTextMeasurer()
+        val maxPx = constraints.maxWidth
+        val (size, scroll) = remember(text, style, maxPx) {
+            var candidate = style.fontSize
+            fun fits(s: TextUnit) = maxPx == Constraints.Infinity ||
+                measurer.measure(text, style.copy(fontSize = s, lineHeight = s * 1.1f), maxLines = 1, softWrap = false).size.width <= maxPx
+            while (!fits(candidate) && candidate.value > minSize.value) candidate = maxOf(minSize.value, candidate.value - 4f).sp
+            candidate to !fits(candidate)
+        }
+        Text(
+            text = text,
+            style = style.copy(fontSize = size, lineHeight = size * 1.1f),
+            color = color,
+            maxLines = 1,
+            softWrap = false,
+            overflow = if (scroll) TextOverflow.Clip else TextOverflow.Ellipsis,
+            modifier = if (scroll) {
+                Modifier.basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 1500, repeatDelayMillis = 2000, velocity = 30.dp)
+            } else {
+                Modifier
+            },
+        )
+    }
 }
 
 // ---- images ----

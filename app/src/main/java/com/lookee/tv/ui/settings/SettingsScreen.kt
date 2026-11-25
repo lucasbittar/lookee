@@ -1,5 +1,10 @@
 package com.lookee.tv.ui.settings
 
+import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.launch
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -51,14 +56,23 @@ fun SettingsScreen() {
         color = LookeeColors.Text,
         modifier = Modifier.padding(start = 48.dp, top = 16.dp, bottom = 8.dp),
     )
+    val list = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     LazyColumn(
+        state = list,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 48.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         state.error?.let { item { Alert("The core reported a problem: $it") } }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            // Scrolling following focus would park the card's button at the top and hide the
+            // card's heading; on the first row, go all the way back to the top instead, a couple
+            // of frames later so it lands after the focus scroll.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                modifier = Modifier.onFocusChanged { if (it.hasFocus) scope.launch { withFrameNanos { }; withFrameNanos { }; list.scrollToItem(0) } },
+            ) {
                 PhoneSetupCard(state.phone, vm::startPhoneSetup, vm::stopPhoneSetup, Modifier.weight(1.2f))
                 StatusCard(state.settings, Modifier.weight(1f))
             }

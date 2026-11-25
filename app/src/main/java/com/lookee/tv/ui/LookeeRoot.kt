@@ -72,6 +72,8 @@ import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import com.lookee.tv.ui.navigation.Navigator
 import com.lookee.tv.ui.navigation.Route
 import com.lookee.tv.ui.navigation.TopNav
+import com.lookee.tv.ui.navigation.ToastHost
+import com.lookee.tv.ui.navigation.SyncToasts
 import com.lookee.tv.ui.navigation.rememberNavRequesters
 import com.lookee.tv.ui.settings.AddFolderScreen
 import com.lookee.tv.ui.settings.SettingsScreen
@@ -191,24 +193,9 @@ fun LookeeRoot() {
                 }
             }
 
-            navigator.message?.let { text ->
-                LaunchedEffect(text) {
-                    kotlinx.coroutines.delay(3500)
-                    navigator.clearMessage()
-                }
-                Text(
-                    text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = LookeeColors.Text,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 32.dp)
-                        .zIndex(2f)
-                        .clip(RoundedCornerShape(50))
-                        .background(LookeeColors.Surface2)
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
-                )
-            }
+            ToastHost(navigator, Modifier.align(Alignment.BottomCenter).zIndex(2f))
+            // After the splash, so the "syncing" toast isn't spent behind it.
+            if (!splash) SyncToasts(app.library, navigator)
 
             if (pushed != null) {
                 Box(

@@ -16,17 +16,24 @@ sealed interface Route {
     data object AddFolder : Route
 }
 
+/** How a toast reads: a plain note, work under way, work finished, or a problem. */
+enum class ToastKind { Info, Working, Done, Problem }
+
+/** [id] makes a repeat of the same text show again. */
+data class Toast(val text: String, val kind: ToastKind, val id: Long)
+
 /** A tiny back stack. The tab screens stay composed underneath, so focus returns to where it was. */
 class Navigator {
     val stack = mutableStateListOf<Route>()
     var selectTab: (Destination) -> Unit = {}
 
     /** A short message shown at the bottom of the screen for a few seconds. */
-    var message by mutableStateOf<String?>(null)
+    var message by mutableStateOf<Toast?>(null)
         private set
+    private var nextId = 0L
 
-    fun toast(text: String) {
-        message = text
+    fun toast(text: String, kind: ToastKind = ToastKind.Info) {
+        message = Toast(text, kind, nextId++)
     }
 
     fun clearMessage() {

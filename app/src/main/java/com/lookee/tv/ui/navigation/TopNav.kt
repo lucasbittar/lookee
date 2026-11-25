@@ -23,7 +23,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
@@ -70,7 +71,12 @@ fun TopNav(
         Wordmark(markSize = 30.dp)
         Spacer(Modifier.width(40.dp))
         Row(
-            modifier = Modifier.focusRestorer { requesters.getValue(selected) },
+            // Coming up from the content always lands on the selected tab. Without this, focus
+            // went to the tab nearest the item (Home, from Settings' left column), and since
+            // tabs select on focus, Up switched screens.
+            modifier = Modifier
+                .focusProperties { enter = { requesters.getValue(selected) } }
+                .focusGroup(),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
