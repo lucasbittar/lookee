@@ -38,6 +38,10 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
             // No software deinterlacing: it forces every frame off the hardware decoder and the
             // Mi Box's CPU can't keep up (DVDs stuttered). The Amlogic decoder handles interlace.
             "--deinterlace=0",
+            // Draw straight to Android's surface, not through OpenGL: VLC's GLES output crashed
+            // in the Mi Box's Mali driver (eglSwapBuffers, SIGSEGV) when seeking a Blu-ray.
+            "--vout=android_display",
+            "--no-video-title-show",
             "--sub-text-scale=100",
             "--no-osd",
         ),
@@ -99,7 +103,7 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
     private fun open(uri: Uri, startMs: Long, discMenu: Boolean) {
         described = false
         val media = Media(libVlc, uri)
-        media.setHWDecoderEnabled(true, false)
+        media.setHWDecoderEnabled(true, false) // MediaCodec when it can, software otherwise
         if (startMs > 0 && !discMenu) media.addOption(":start-time=${startMs / 1000.0}")
         player.media = media
         media.release()

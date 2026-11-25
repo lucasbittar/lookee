@@ -236,6 +236,8 @@ Implementation notes (2026-11-24):
   - `bluray`: the longest `.mpls` playlist whose clips are all present, falling back to the largest `.m2ts`. The core converts `.m2ts` (192-byte packets) to plain TS on the fly, because Media3's TS extractor expects 188-byte packets.
   - `iso`: the core reads the ISO 9660 file table and serves the DVD's main title straight from the image. Blu-ray images are UDF-only and show "Blu-ray disc images can't play yet" (open: a UDF 2.5 reader).
   - Checked on the emulator with rips made from *Sintel*: the Blu-ray rip plays and seeks. The DVD folder and the ISO are parsed and served, but the emulator has no MPEG-2/AC3 decoders, while the Mi Box lists both (`OMX.amlogic.mpeg2`, `.ac3`). The box run is pending.
+- [x] **Fixed: VLC crashed when seeking a Blu-ray on the box.** The crash report (`logcat -b crash`) showed SIGSEGV in the Mali driver's `eglSwapBuffers`, called from VLC's OpenGL output. VLC now draws straight to the Android surface (`--vout=android_display`).
+- [x] **Refresh-rate matching:** the MIBOX3 offers 1080p at 60, 59.94, 50, 30, 29.97, 25, 24 and 23.976 Hz. The player picks the highest rate that's a whole multiple of the video's frame rate (50 Hz for PAL DVDs) and restores the system's choice when it closes. At 60 Hz, PAL DVDs stuttered.
 - [x] **Fixed: scans could fail with "disk I/O error: read-only file system".** SQLite writes temp files (big deletes, sorts) to the current directory when no temp dir is set, and an app's is `/`. The core now sets `SQLITE_TMPDIR` to its cache. Pruning ~70 titles at once triggered it. Every scan now logs "scan finished"/"scan failed".
 
 **Implementation notes**
