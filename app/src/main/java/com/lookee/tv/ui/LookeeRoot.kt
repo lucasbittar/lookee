@@ -1,5 +1,6 @@
 package com.lookee.tv.ui
 
+import com.lookee.tv.ui.player.PlayerScreen
 import android.Manifest
 import com.lookee.tv.ui.navigation.LocalNavInset
 import androidx.compose.ui.platform.LocalDensity
@@ -222,6 +223,7 @@ fun LookeeRoot() {
                         is Route.Sources -> SourcesScreen(pushed.item)
                         is Route.Buffering -> BufferingScreen(pushed.title, pushed.result)
                         Route.AddFolder -> AddFolderScreen()
+                        is Route.Player -> PlayerScreen(pushed.item)
                     }
                 }
             }

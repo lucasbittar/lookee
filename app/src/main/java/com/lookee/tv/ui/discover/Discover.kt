@@ -76,6 +76,7 @@ import com.lookee.tv.ui.components.RowTitle
 import com.lookee.tv.ui.components.ScreenInset
 import com.lookee.tv.ui.components.ScreenHeader
 import com.lookee.tv.ui.components.SearchField
+import com.lookee.tv.ui.player.PlayItem
 import com.lookee.tv.ui.components.bytes
 import com.lookee.tv.ui.navigation.Destination
 import com.lookee.tv.ui.navigation.LocalNavigator
@@ -343,13 +344,22 @@ class BufferingViewModel(private val result: TorrentResult, private val core: Go
         }
     }
 
+    /** Set when the player takes the stream over: from then on the player stops it. */
+    var handedOff = false
+        private set
+
+    fun handOff() {
+        handedOff = true
+    }
+
     fun stop() {
+        if (handedOff) return
         viewModelScope.launch { runCatching { core.stopStream() } }
     }
 
     override fun onCleared() {
         // Leaving the screen always stops the stream and deletes its pieces (CLAUDE.md).
-        kotlinx.coroutines.runBlocking { runCatching { core.stopStream() } }
+        if (!handedOff) kotlinx.coroutines.runBlocking { runCatching { core.stopStream() } }
     }
 }
 
@@ -364,6 +374,13 @@ fun BufferingScreen(title: String, result: TorrentResult) {
     LaunchedEffect(Unit) {
         vm.start()
         runCatching { cancel.requestFocus() }
+    }
+    // Enough is buffered: the player takes over (and with it, stopping the stream).
+    LaunchedEffect(stats.state, stats.url) {
+        if (stats.state == "ready" && stats.url.isNotEmpty() && !vm.handedOff) {
+            vm.handOff()
+            nav.replace(Route.Player(PlayItem(path = stats.url, title = title, subtitle = stats.fileName.ifEmpty { stats.name }, stream = true)))
+        }
     }
     DisposableEffect(Unit) { onDispose { vm.stop() } }
 
@@ -396,7 +413,6 @@ fun BufferingScreen(title: String, result: TorrentResult) {
                 Chip(listOf(result.quality, bytes(result.size)).filter { it.isNotEmpty() }.joinToString(" · "))
             }
             state.error?.let { Alert("Couldn't start: $it", modifier = Modifier.width(520.dp)) }
-            if (ready) Text("Ready. The player arrives in the next build.", style = MaterialTheme.typography.bodyMedium, color = LookeeColors.Ok)
             LookeeButton("Cancel", onClick = { vm.stop(); nav.pop() }, modifier = Modifier.focusRequester(cancel), style = ButtonStyle.Primary)
         }
     }

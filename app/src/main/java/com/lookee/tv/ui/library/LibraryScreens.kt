@@ -1,5 +1,7 @@
 package com.lookee.tv.ui.library
 
+import com.lookee.tv.ui.player.chain
+import com.lookee.tv.ui.player.PlayItem
 import androidx.activity.compose.BackHandler
 import com.lookee.tv.ui.navigation.LocalNavInset
 import androidx.compose.foundation.background
@@ -467,7 +469,7 @@ fun TutorialsScreen() {
                     trail = listOf(root.path) + parts.indices.map { i -> root.path + "/" + parts.take(i + 1).joinToString("/") }
                     entered = true
                     query = ""
-                }, onLesson = { nav.toast("The player arrives in the next build.") })
+                }, onLesson = { hit -> nav.push(Route.Player(lessonItem(hit.asEntry(), hit.folder.ifEmpty { "Lessons" }))) })
                 return@Column
             }
             Row(horizontalArrangement = Arrangement.spacedBy(28.dp)) {
@@ -485,7 +487,11 @@ fun TutorialsScreen() {
                         RowTitle(if (current == null) "Pick a folder" else "${current.substringAfterLast('/')} · ${lessons.size} lessons · ${lessons.count { it.durationMs > 0 && it.positionMs >= it.durationMs * 0.95 }} done")
                     }
                     itemsIndexed(lessons, key = { _, l -> l.path }) { i, l ->
-                        LessonRow(i + 1, l, look.tint, if (i == 0) Modifier.focusRequester(firstLesson) else Modifier) { nav.toast("The player arrives in the next build.") }
+                        LessonRow(i + 1, l, look.tint, if (i == 0) Modifier.focusRequester(firstLesson) else Modifier) {
+                            // The rest of the folder plays after it.
+                            val folder = current?.substringAfterLast('/').orEmpty()
+                            chain(lessons.drop(i).mapIndexed { j, e -> lessonItem(e, folder, resume = j == 0) })?.let { nav.push(Route.Player(it)) }
+                        }
                     }
                 }
             }
@@ -511,6 +517,16 @@ private fun LessonResults(hits: List<LessonHit>?, query: String, tint: Color, on
             }
         }
     }
+}
+
+private fun lessonItem(lesson: FolderEntry, folder: String, resume: Boolean = true): PlayItem {
+    val finished = lesson.durationMs > 0 && lesson.positionMs >= lesson.durationMs * 0.95
+    return PlayItem(
+        path = lesson.path,
+        title = lesson.name.substringBeforeLast('.'),
+        subtitle = folder,
+        startMs = if (resume && !finished) lesson.positionMs else 0,
+    )
 }
 
 @Composable

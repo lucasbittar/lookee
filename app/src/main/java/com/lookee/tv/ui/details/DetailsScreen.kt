@@ -1,5 +1,7 @@
 package com.lookee.tv.ui.details
 
+import com.lookee.tv.ui.player.chain
+import com.lookee.tv.ui.player.PlayItem
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -228,13 +230,30 @@ private fun FilmBody(d: MediaDetails, vm: DetailsViewModel) {
             Text(d.overview, style = MaterialTheme.typography.bodyLarge, color = Color(0xFFC9CED6), maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
         Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val resume = file != null && file.positionMs > 0 && file.durationMs > 0
+            val resume = file != null && file.positionMs > 0 && file.durationMs > 0 && file.positionMs < file.durationMs * 0.95
+            val play = { from: Long ->
+                when {
+                    file == null -> nav.toast("This title has no file on the drive.")
+                    file.kind != "file" -> nav.toast("Disc rips play in a coming build.")
+                    else -> nav.push(
+                        Route.Player(
+                            PlayItem(
+                                path = file.path,
+                                title = d.title,
+                                subtitle = listOfNotNull(d.year.takeIf { it > 0 }?.toString(), d.genres.firstOrNull()).joinToString(" · "),
+                                titleId = d.id,
+                                startMs = from,
+                            ),
+                        ),
+                    )
+                }
+            }
             LookeeButton(
                 if (resume) "Resume from ${clock(file!!.positionMs)}" else "Play",
-                onClick = { nav.toast("The player arrives in the next build.") },
+                onClick = { play(if (resume) file!!.positionMs else 0) },
                 modifier = Modifier.focusRequester(first),
             )
-            if (resume) LookeeButton("Play from start", onClick = { nav.toast("The player arrives in the next build.") }, style = ButtonStyle.Quiet)
+            if (resume) LookeeButton("Play from start", onClick = { play(0) }, style = ButtonStyle.Quiet)
             LookeeButton("Fix match", onClick = vm::openFix, style = ButtonStyle.Quiet)
         }
         if (file != null) progressOf(file.positionMs, file.durationMs)?.let { ProgressLine(it, Modifier.width(320.dp).clip(RoundedCornerShape(2.dp))) }
@@ -267,6 +286,22 @@ private fun SeriesBody(d: MediaDetails, vm: DetailsViewModel) {
         }
     }
     val seasons = remember(episodes) { episodes.map { it.file.season }.distinct().sorted() }
+    // Playing an episode queues the rest of the show after it, so "Next" and autoplay work.
+    val ordered = remember(episodes) { episodes.sortedWith(compareBy({ it.file.season }, { it.file.episode })) }
+    val playFrom = { ep: EpisodeRow ->
+        val items = ordered.dropWhile { it !== ep }.take(30).mapIndexed { i, e ->
+            val f = e.file
+            val finished = f.durationMs > 0 && f.positionMs >= f.durationMs * 0.95
+            PlayItem(
+                path = f.path,
+                title = e.name.ifEmpty { "Episode ${f.episode}" },
+                subtitle = "${d.title} · Season ${f.season} · Episode ${f.episode}",
+                titleId = d.id,
+                startMs = if (i == 0 && !finished) f.positionMs else 0,
+            )
+        }
+        chain(items)?.let { nav.push(Route.Player(it)) }
+    }
     val next = episodes.firstOrNull { !(it.file.durationMs > 0 && it.file.positionMs >= it.file.durationMs * 0.95) }
     var season by rememberSaveable(d.id) { mutableStateOf(next?.file?.season ?: seasons.firstOrNull() ?: 1) }
     val first = remember { FocusRequester() }
@@ -284,7 +319,7 @@ private fun SeriesBody(d: MediaDetails, vm: DetailsViewModel) {
             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 LookeeButton(
                     next?.let { "Resume S${it.file.season} · E${it.file.episode}" } ?: "Play",
-                    onClick = { nav.toast("The player arrives in the next build.") },
+                    onClick = { (next ?: ordered.firstOrNull())?.let(playFrom) },
                     modifier = Modifier.focusRequester(first),
                 )
                 LookeeButton("Fix match", onClick = vm::openFix, style = ButtonStyle.Quiet)
@@ -298,7 +333,7 @@ private fun SeriesBody(d: MediaDetails, vm: DetailsViewModel) {
             }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 48.dp)) {
                 items(episodes.filter { it.file.season == season }, key = { it.file.path }) { ep ->
-                    EpisodeCard(ep) { nav.toast("The player arrives in the next build.") }
+                    EpisodeCard(ep) { playFrom(ep) }
                 }
             }
         }

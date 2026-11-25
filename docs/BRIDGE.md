@@ -36,7 +36,7 @@
 
 | Area | Functions |
 |---|---|
-| Lifecycle | `initEngine(filesDir, cacheDir, externalDir)`, `shutdown`, `coreVersion`, `getLogs(n)` |
+| Lifecycle | `initEngine(filesDir, cacheDir, externalDir)`, `shutdown`, `coreVersion`, `getLogs(n)`, `logEvent(level, message)` |
 | Settings | `getSettings`, `setSetting(key, value)`, `startRemoteSetup(host, cb)`, `stopRemoteSetup` |
 | Library roots | `listRoots`, `addRoot(path, category)`, `removeRoot(id)`, `listStorageVolumes` |
 | Scan | `startScan(cb)`, `cancelScan` |

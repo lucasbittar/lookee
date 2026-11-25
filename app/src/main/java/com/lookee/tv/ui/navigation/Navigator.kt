@@ -1,5 +1,6 @@
 package com.lookee.tv.ui.navigation
 
+import com.lookee.tv.ui.player.PlayItem
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -14,6 +15,7 @@ sealed interface Route {
     data class Sources(val item: DiscoverItem) : Route
     data class Buffering(val title: String, val result: TorrentResult) : Route
     data object AddFolder : Route
+    data class Player(val item: PlayItem) : Route
 }
 
 /** How a toast reads: a plain note, work under way, work finished, or a problem. */

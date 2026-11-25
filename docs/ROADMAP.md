@@ -13,7 +13,7 @@ Each phase ends with **exit criteria** that can be checked with a command or on 
 | 2 | Torrent streamer & subtitle client | macOS | ✅ |
 | 3 | gomobile binding & Android TV shell | macOS + emulator | ✅ |
 | 4 | TV screens & USB storage | emulator + Mi Box | 🟨 |
-| 5 | Player & subtitle hot-reload | Mi Box | ⬜ |
+| 5 | Player & subtitle hot-reload | Mi Box | 🟨 |
 | 6 | End-to-end build, CI & release | macOS + GitHub | ⬜ |
 
 The guiding idea: everything in Phases 1–2 is plain Go that runs and is tested on the Mac through `lookee-cli`. No Android device is needed until Phase 3, and by then the engine already works.
@@ -224,18 +224,27 @@ Implementation notes (2026-11-24):
 **Tasks**
 
 - [ ] Spike on the box first (Decision 14): play a `.VOB`, an `.m2ts`, an MP2-audio file and a DTS file from the library with Media3; decide FFmpeg extension vs. Go remux vs. libVLC fallback.
-- [ ] Player screen with ExoPlayer for `file://` paths and the loopback stream URL; custom OSD (not the stock `PlayerView` controls).
-- [ ] D-pad OSD: play/pause, ±10 s seek, hold-to-scrub, audio track and subtitle track pickers.
-- [ ] Resume: save position every few seconds and on stop; prompt "Resume from 43:10?" on Details.
-- [ ] Sidecar and embedded subtitles; online search panel inside the player.
+- [x] Player screen with ExoPlayer for `file://` paths and the loopback stream URL; custom OSD (not the stock `PlayerView` controls).
+- [x] D-pad OSD: play/pause, ±10 s seek, hold-to-scrub, audio track and subtitle track pickers.
+- [x] Resume: save position every few seconds and on stop; prompt "Resume from 43:10?" on Details.
+- [x] Sidecar and embedded subtitles. [ ] Online search panel inside the player.
 - [ ] Hot-reload: rebuild the `MediaItem` with the new `SubtitleConfiguration` and re-prepare at the current position.
 - [ ] Subtitle size control and sync offset (−5.0 s to +5.0 s, 100 ms steps) through `ShiftSubtitle`.
-- [ ] Leaving the player always calls `StopStream`, including on process death recovery at next launch.
+- [x] Leaving the player always calls `StopStream`, including on process death recovery at next launch (the core sweeps the stream cache at start).
 - [ ] Disc rips (Decision 13):
   - `dvd`: play the main title set (the `VTS_xx` group with the largest total `.VOB` size) as one continuous stream, served by the Go core from the loopback server if Media3 cannot play a concatenated VOB playlist directly.
   - `bluray`: play the largest `.m2ts`, or the main `.mpls` playlist's clips in order.
   - `iso`: the Go core reads the ISO 9660/UDF image and serves the main title over the loopback server.
   - First, a spike on the box: does Media3 play a `.VOB` and an `.m2ts` from your library, with sound? The result decides how much of the above the Go core must do.
+
+**Implementation notes**
+
+- **Player:** ExoPlayer with decoder fallback, drawn in a bare `PlayerView`; Compose draws the OSD from the mockup. That means a title header with "On your drive"/"Streaming" and a codec chip ("1080p · H.264 · AC3"), a focusable seek bar, ±10 s and play/pause, Subtitles/Audio pills, and "Next: …" for episodes and lessons. The OSD hides after 4 s. With it hidden, OK pauses, ◀ ▶ jump 10 s (holding repeats) and ▲ ▼ show it. Back closes the panel, then the OSD, then the player. Back is read in the player's own key handler, because the focus traps swallowed it before the activity's back dispatcher saw it.
+- **Queues:** playing an episode queues the rest of the show (up to 30), and a lesson queues the rest of its folder. When one ends, the next starts.
+- **Progress** is saved every 5 s, on pause, on leaving and when playback ends (as finished). Continue Watching resumes straight into the player.
+- **Subtitles:** sidecars (`.srt/.vtt/.ass`) are attached at load. Subtitles turn on by themselves only in the first preferred language (`subtitle_languages`, pt-BR here). Size has three steps, Small/Medium/Large.
+- **Diagnose without ADB:** a new bridge call, `LogEvent`, writes the shell's playback events to the core log: what played, every track with whether the box can decode it, and errors with their Media3 code. These are readable in Settings → Diagnostics or from the phone page. That makes them the record for the format spike. A file whose audio can't play shows a toast ("This file's DTS audio can't play on this box"). An undecodable video shows "Can't play this" with the reason.
+- **Torrent streams:** the buffering screen hands the stream to the player once it's ready. From then on the player stops it (deleting its pieces) when it closes.
 
 **Exit criteria (on the Mi Box)**
 

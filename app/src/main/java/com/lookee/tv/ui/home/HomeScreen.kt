@@ -1,5 +1,6 @@
 package com.lookee.tv.ui.home
 
+import com.lookee.tv.ui.player.PlayItem
 import androidx.compose.animation.Crossfade
 import com.lookee.tv.ui.navigation.LocalNavInset
 import androidx.compose.animation.core.tween
@@ -192,7 +193,20 @@ fun HomeScreen() {
                                             caption = if (item.episode > 0) "S${item.season} · E${item.episode} ${item.episodeName}".trim() else timeLeft(item.positionMs, item.durationMs),
                                             imageUrl = item.stillUrl.ifEmpty { item.backdropUrl },
                                             progress = progressOf(item.positionMs, item.durationMs),
-                                            onClick = { if (item.titleId > 0) nav.push(Route.Details(item.titleId)) else nav.toast("The player arrives in the next build.") },
+                                            // Continue Watching resumes straight away, as on any TV app.
+                                            onClick = {
+                                                nav.push(
+                                                    Route.Player(
+                                                        PlayItem(
+                                                            path = item.key,
+                                                            title = if (item.episode > 0) item.episodeName.ifEmpty { "Episode ${item.episode}" } else item.title,
+                                                            subtitle = if (item.episode > 0) "${item.title} · Season ${item.season} · Episode ${item.episode}" else "",
+                                                            titleId = item.titleId,
+                                                            startMs = item.positionMs,
+                                                        ),
+                                                    ),
+                                                )
+                                            },
                                             onFocused = { vm.focus(heroOf(item)) },
                                             videoPath = item.key,
                                         )

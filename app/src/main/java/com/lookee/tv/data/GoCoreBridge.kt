@@ -57,6 +57,11 @@ class GoCoreBridge(
 
     fun coreVersion(): String = Lookeecore.coreVersion()
 
+    /** Writes to the core's diagnostics log (readable from the phone page); never throws. */
+    suspend fun logEvent(message: String, warn: Boolean = false) {
+        runCatching { call { Lookeecore.logEvent(if (warn) "warn" else "info", message) } }
+    }
+
     suspend fun logs(lines: Int = 200): List<String> = get { Lookeecore.getLogs(lines.toLong()) }
 
     // ---- settings ----

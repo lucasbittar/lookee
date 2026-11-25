@@ -122,6 +122,23 @@ func Shutdown() error {
 // CoreVersion returns the library version.
 func CoreVersion() string { return Version }
 
+// LogEvent writes an app-side event to the diagnostics log, so problems seen only in the
+// Kotlin shell (a file that won't play, a track the box can't decode) can be read from the
+// phone page with USB debugging off. level is "info" or "warn". Messages carry file names
+// and codecs, never secrets.
+func LogEvent(level, message string) error {
+	e, err := get()
+	if err != nil {
+		return err
+	}
+	if level == "warn" {
+		e.Logger().Warn("app", "event", message)
+	} else {
+		e.Logger().Info("app", "event", message)
+	}
+	return nil
+}
+
 // GetLogs returns the last n lines of the diagnostics log as a JSON array of strings.
 func GetLogs(n int) (string, error) {
 	e, err := get()

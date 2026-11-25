@@ -65,6 +65,9 @@ dependencies {
     implementation(libs.coil.compose)
     // QR code for the phone setup URL (pure Java, no network).
     implementation(libs.zxing.core)
+    // Playback (Phase 5): hardware decoding through MediaCodec; PlayerView only for its surface and subtitle view.
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)
