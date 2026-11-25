@@ -28,7 +28,7 @@ MIBOX_IP     ?=
 # SQLite piece store bundles a second SQLite that clashes with mattn/go-sqlite3.
 GO_TAGS ?= purego_utp,nosqlite
 
-.PHONY: all test lint cli cli-android push-cli serve-apk bind bind-release apk install devices clean doctor
+.PHONY: all test lint cli cli-android push-cli serve-apk bind bind-release apk apk-release install install-release devices clean doctor
 
 all: test bind apk
 
@@ -83,6 +83,18 @@ ifneq ($(MIBOX_IP),)
 	$(ADB) connect $(MIBOX_IP):5555
 endif
 	$(ADB) install -r $(APK)
+
+## apk-release: build the optimised APK (R8, not debuggable): starts in ~1.5 s on the Mi Box vs ~8.4 s for debug
+apk-release: $(AAR)
+	./gradlew assembleRelease
+
+## install-release: install the release APK on the Mi Box and precompile it (~0.9 s starts)
+install-release:
+ifneq ($(MIBOX_IP),)
+	$(ADB) connect $(MIBOX_IP):5555
+endif
+	$(ADB) install -r app/build/outputs/apk/release/app-release.apk
+	$(ADB) shell cmd package compile -m speed-profile -f com.lookee.tv
 
 ## serve-apk: serve the debug APK on the LAN for the TV's Downloader app (no ADB needed, Decision 12)
 SERVE_PORT ?= 8686
