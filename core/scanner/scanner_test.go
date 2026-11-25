@@ -179,3 +179,81 @@ func TestNaturalLess(t *testing.T) {
 		}
 	}
 }
+
+// Disc layouts found in the real MIBOX3 library (2026-11-24 crawl).
+func TestSyncDiscRips(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	store, err := db.Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	nirvana := filepath.Join(dir, "Nirvana Unplugged in New York (1994)", "VIDEO_TS")
+	for _, f := range []string{"VIDEO_TS.IFO", "VTS_01_0.IFO", "VTS_01_0.BUP", "VTS_01_1.VOB", "VTS_01_2.VOB"} {
+		touch(t, filepath.Join(nirvana, f), 10)
+	}
+	carole := filepath.Join(dir, "Carole King and James Taylor - Live At The Troubadour (2021)")
+	touch(t, filepath.Join(carole, "VTS_01_1.VOB"), 10)
+	touch(t, filepath.Join(carole, "VTS_01_2.VOB"), 10)
+	norah := filepath.Join(dir, "Norah Jones - Live At Ronnie Scott's (2018)", "BDMV")
+	touch(t, filepath.Join(norah, "index.bdmv"), 1)
+	touch(t, filepath.Join(norah, "STREAM", "00000.m2ts"), 10)
+	touch(t, filepath.Join(norah, "STREAM", "00001.m2ts"), 10)
+	touch(t, filepath.Join(dir, "Iron Maiden Rock in Rio (2002)", "IRON_MAIDEN_D1.iso"), 10)
+	touch(t, filepath.Join(dir, "Whitesnake The Purple Tour (2018)", "00001.m2ts"), 10)
+	// A Blu-ray whose BDMV structure was flattened by copying.
+	flat := filepath.Join(dir, "Norah Jones Flattened (2018)")
+	touch(t, filepath.Join(flat, "(2) 00000.clpi"), 1)
+	touch(t, filepath.Join(flat, "00010.mpls"), 1)
+	touch(t, filepath.Join(flat, "00007.m2ts"), 10)
+	touch(t, filepath.Join(flat, "00011.m2ts"), 10)
+
+	root, _ := store.AddRoot(ctx, dir, db.Movies)
+	res, err := Sync(ctx, store, root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Added != 6 {
+		t.Fatalf("want 6 items (dvd, loose vob, bluray, flat bluray, iso, m2ts), got %+v", res)
+	}
+
+	want := map[string]struct {
+		kind  string
+		title string
+		size  int64
+	}{
+		nirvana: {"dvd", "Nirvana Unplugged in New York", 50},
+		carole:  {"dvd", "Carole King and James Taylor - Live At The Troubadour", 20},
+		norah:   {"bluray", "Norah Jones - Live At Ronnie Scott's", 21},
+		filepath.Join(dir, "Iron Maiden Rock in Rio (2002)", "IRON_MAIDEN_D1.iso"): {"iso", "Iron Maiden Rock in Rio", 10},
+		filepath.Join(dir, "Whitesnake The Purple Tour (2018)", "00001.m2ts"):      {"file", "Whitesnake The Purple Tour", 10},
+		flat: {"bluray", "Norah Jones Flattened", 22},
+	}
+	titles, _ := store.ListTitles(ctx, db.TitleFilter{})
+	for _, tt := range titles {
+		files, _ := store.Files(ctx, tt.ID)
+		for _, f := range files {
+			w, ok := want[f.Path]
+			if !ok {
+				t.Errorf("unexpected item %s", f.Path)
+				continue
+			}
+			if f.Kind != w.kind || tt.Name != w.title || f.Size != w.size {
+				t.Errorf("%s: kind=%s title=%q size=%d, want %s %q %d", f.Path, f.Kind, tt.Name, f.Size, w.kind, w.title, w.size)
+			}
+			delete(want, f.Path)
+		}
+	}
+	if len(want) != 0 {
+		t.Errorf("missing items: %v", want)
+	}
+
+	// Changing one part of a disc updates that one item.
+	touch(t, filepath.Join(nirvana, "VTS_01_3.VOB"), 10)
+	res, _ = Sync(ctx, store, root, nil)
+	if res.Added != 0 || res.Updated != 1 || res.Removed != 0 {
+		t.Fatalf("disc change = %+v", res)
+	}
+}

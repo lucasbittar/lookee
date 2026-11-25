@@ -49,7 +49,8 @@ Because `gomobile bind` only supports a strict subset of Go types (`string`, `in
   - `TV_SHOWS` → Scraped via TMDB TV API.
   - `CONCERTS` → Scraped via TMDB Movie/TV API with clean filename fallback.
   - `TUTORIALS` → Raw hierarchical folder browser; **zero** TMDB scraping (ideal for guitar solo lessons, backing tracks, and personal videos).
-- **Supported Extensions:** `.mkv`, `.mp4`, `.avi`, `.mov`, `.webm`, `.m4v`, `.ts`.
+- **Supported Extensions:** `.mkv`, `.mp4`, `.avi`, `.mov`, `.webm`, `.m4v`, `.ts`, `.m2ts`, `.mts`.
+- **Disc Rips:** DVD (`.VOB/.IFO/.BUP` folders), Blu-ray (`BDMV` or flattened `.mpls/.clpi` + `.m2ts` folders) and `.iso` images are indexed as one item each, with `kind` = `dvd`/`bluray`/`iso` (ROADMAP Decision 13).
 - **Startup Incremental Sync:** On app launch, Go runs an asynchronous goroutine scan comparing file paths + `mtime`/`size` against SQLite, fetching metadata only for new files and pruning disconnected/deleted entries without blocking UI rendering.
 
 ### B. Filename Parser & TMDB Scraper (Go)

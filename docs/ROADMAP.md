@@ -193,12 +193,18 @@ The `Makefile` sets `ANDROID_HOME`, `ANDROID_NDK_HOME` and `JAVA_HOME` itself an
 - [ ] Hot-reload: rebuild the `MediaItem` with the new `SubtitleConfiguration` and re-prepare at the current position.
 - [ ] Subtitle size control and sync offset (−5.0 s to +5.0 s, 100 ms steps) through `ShiftSubtitle`.
 - [ ] Leaving the player always calls `StopStream`, including on process death recovery at next launch.
+- [ ] Disc rips (Decision 13):
+  - `dvd`: play the main title set (the `VTS_xx` group with the largest total `.VOB` size) as one continuous stream, served by the Go core from the loopback server if Media3 cannot play a concatenated VOB playlist directly.
+  - `bluray`: play the largest `.m2ts`, or the main `.mpls` playlist's clips in order.
+  - `iso`: the Go core reads the ISO 9660/UDF image and serves the main title over the loopback server.
+  - First, a spike on the box: does Media3 play a `.VOB` and an `.m2ts` from your library, with sound? The result decides how much of the above the Go core must do.
 
 **Exit criteria (on the Mi Box)**
 
 - A 1080p H.264 file and a 4K HEVC file from USB play with hardware decoding.
 - A torrent stream plays, seeks, and its cache is gone after exiting the player.
 - A subtitle downloaded mid-playback appears within about two seconds, and the offset control visibly shifts it.
+- A DVD rip, the Blu-ray rip and an ISO from the library each play with sound, or show a clear "can't play this disc" message.
 - Internal storage use returns to baseline after a streaming session.
 
 ---
@@ -246,7 +252,7 @@ These are places where the plan departs from, or tightens, `CLAUDE.md`. Each lis
 12. **ADB-free install and diagnostics, because the MIBOX3 cannot use ADB and the USB drive at the same time.**
     - *Install:* Phase 3 adds `make serve-apk`, which serves the APK over the LAN for the free *Downloader* app on the TV. `make install` stays for when debugging is on.
     - *Logs:* the Go core writes a rolling log file (Phase 2, `core/logs`). The phone settings page gets a PIN-protected "Diagnostics" view that shows it, so errors can be read from a phone without `logcat`.
-13. **Disc rips — open.** Options under consideration: index `VIDEO_TS`/`BDMV`/`.iso` folders as single titles and play the main title (DVD `.VOB` is MPEG-PS; whether Media3 handles it, `.m2ts`, and the box's MP2/LPCM audio must be checked on the device in Phase 5), versus listing them as "convert with MakeMKV" items.
+13. **Disc rips are indexed and played.** (Decided 2026-11-24.) Each rip is one library item with a `kind`: a folder of `.VOB/.IFO/.BUP` → `dvd`; a `BDMV` folder, or a folder of flattened Blu-ray files (`.mpls/.clpi` next to `.m2ts`) → `bluray`; an `.iso` → `iso`. Loose `.m2ts/.mts` are ordinary files. Titles come from the `Title (Year)` folder. Playback is Phase 5 work, verified on the box; anything the box cannot decode must show a clear message, never fail silently.
 
 ## Risks
 
@@ -254,7 +260,7 @@ These are places where the plan departs from, or tightens, `CLAUDE.md`. Each lis
 2. **Codec coverage.** ExoPlayer relies on the device decoders. DTS and some AC3 audio only work as passthrough to a capable receiver, and odd AVI codecs may not play at all. Mitigation if it bites: add a Media3 FFmpeg audio decoder extension in Phase 5.
 3. **Memory and storage on the box.** 2 GB RAM with only ~500 MB free at idle, and 8 GB flash. The torrent client needs a hard memory budget (Phase 2 exit criterion: measure RSS while streaming). Mitigation: capped torrent connections, no mmap storage, bounded image cache, cache sweep at startup and at player exit.
 4. **Indexer churn.** YTS and EZTV endpoints change. Mitigation: URLs are settings; the provider interface makes adding Torznab sources a configuration change.
-5. **Disc rips are a third of the movie library.** 24 of 72 movie folders hold no regular video file: DVD rips (`VIDEO_TS`, `.VOB/.IFO/.BUP`) in 19, Blu-ray `BDMV`/`.m2ts` in 3, `.ISO` images in 2. Almost all are concerts. The scanner currently ignores them. How to handle them is open (Decision 13).
+5. **Disc rips are a third of the movie library.** 24 of 72 movie folders hold no regular video file: DVD rips in 19, Blu-ray/`.m2ts` in 3, `.ISO` images in 2, almost all concerts. They are now indexed (Decision 13; 18 of 19 DVDs match TMDB). Playback is the open part: Media3 support for MPEG-PS (`.VOB`), `.m2ts`, and DVD audio (AC3, MP2, LPCM) on the MIBOX3 must be proven in Phase 5, and ISO images need the Go core to read the image. One DVD in the library (*Eric Clapton – MTV Unplugged*) has a 66 MB main VOB and is probably a truncated rip.
 6. **Legal.** The app ships no content and no bundled keys. The README states that users are responsible for what they stream; demo material uses freely licensed films only.
 
 ## Target device

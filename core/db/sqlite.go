@@ -111,6 +111,8 @@ CREATE TABLE playback_progress (
 );
 CREATE INDEX playback_progress_recent ON playback_progress(updated_at DESC);
 `,
+	// 2: disc rips are indexed as one item each.
+	`ALTER TABLE media_files ADD COLUMN kind TEXT NOT NULL DEFAULT 'file';`,
 }
 
 // Open opens (creating if needed) the database at path and applies migrations.
@@ -347,9 +349,9 @@ func (tx *Tx) FindOrCreateTitle(ctx context.Context, cat Category, groupKey stri
 // InsertFile indexes a new file.
 func (tx *Tx) InsertFile(ctx context.Context, f File) (int64, error) {
 	res, err := tx.ExecContext(ctx, `
-		INSERT INTO media_files(root_id, path, size, mtime, title_id, season, episode, episode_end, added_at)
-		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		f.RootID, f.Path, f.Size, f.MTime, f.TitleID, f.Season, f.Episode, f.EpisodeEnd, now())
+		INSERT INTO media_files(root_id, path, kind, size, mtime, title_id, season, episode, episode_end, added_at)
+		VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		f.RootID, f.Path, kindOrFile(f.Kind), f.Size, f.MTime, f.TitleID, f.Season, f.Episode, f.EpisodeEnd, now())
 	if err != nil {
 		return 0, err
 	}
@@ -360,6 +362,13 @@ func (tx *Tx) InsertFile(ctx context.Context, f File) (int64, error) {
 func (tx *Tx) UpdateFileStat(ctx context.Context, id, size, mtime int64) error {
 	_, err := tx.ExecContext(ctx, `UPDATE media_files SET size = ?, mtime = ? WHERE id = ?`, size, mtime, id)
 	return err
+}
+
+func kindOrFile(k string) string {
+	if k == "" {
+		return "file"
+	}
+	return k
 }
 
 // DeleteFile removes a file from the index.
@@ -561,7 +570,7 @@ func (s *Store) Cast(ctx context.Context, titleID int64) ([]CastMember, error) {
 // Files returns the files of a title ordered by season/episode/path.
 func (s *Store) Files(ctx context.Context, titleID int64) ([]File, error) {
 	rows, err := s.sql.QueryContext(ctx, `
-		SELECT id, root_id, path, size, mtime, title_id, season, episode, episode_end, added_at
+		SELECT id, root_id, path, kind, size, mtime, title_id, season, episode, episode_end, added_at
 		FROM media_files WHERE title_id = ? ORDER BY season, episode, path`, titleID)
 	if err != nil {
 		return nil, err
@@ -570,7 +579,7 @@ func (s *Store) Files(ctx context.Context, titleID int64) ([]File, error) {
 	var out []File
 	for rows.Next() {
 		var f File
-		if err := rows.Scan(&f.ID, &f.RootID, &f.Path, &f.Size, &f.MTime, &f.TitleID, &f.Season, &f.Episode, &f.EpisodeEnd, &f.AddedAt); err != nil {
+		if err := rows.Scan(&f.ID, &f.RootID, &f.Path, &f.Kind, &f.Size, &f.MTime, &f.TitleID, &f.Season, &f.Episode, &f.EpisodeEnd, &f.AddedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, f)

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/lucasbittar/lookee/core/db"
@@ -56,13 +57,19 @@ func Sync(ctx context.Context, store *db.Store, root db.Root, progress func(Prog
 		return res, err
 	}
 
-	type found struct {
-		path        string
+	// Collect playable items: single video files, or whole disc rips aggregated
+	// under one key path (size = sum of parts, mtime = newest part).
+	type item struct {
+		kind        string
 		size, mtime int64
 	}
-	var added []found
-	type changed struct{ id, size, mtime int64 }
-	var updated []changed
+	items := map[string]*item{}
+	type entry struct {
+		path, name  string
+		size, mtime int64
+	}
+	var entries []entry
+	flatBluray := map[string]bool{}
 
 	walkErr := filepath.WalkDir(root.Path, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -81,34 +88,66 @@ func Sync(ctx context.Context, store *db.Store, root db.Root, progress func(Prog
 			}
 			return nil
 		}
-		if strings.HasPrefix(name, ".") || !IsVideo(name) {
+		if strings.HasPrefix(name, ".") {
 			return nil
 		}
 		info, err := d.Info()
 		if err != nil {
 			return nil
 		}
-		if info.Size() < sampleMaxSize && strings.Contains(strings.ToLower(name), "sample") {
-			return nil
+		if IsBlurayMarker(name) {
+			flatBluray[filepath.Dir(path)] = true
 		}
-		res.Seen++
-		if progress != nil && res.Seen%50 == 0 {
-			progress(Progress{Root: root.Path, FilesSeen: res.Seen})
-		}
-		size, mtime := info.Size(), info.ModTime().Unix()
-		if old, ok := existing[path]; ok {
-			delete(existing, path)
-			if old.Size != size || old.MTime != mtime {
-				updated = append(updated, changed{old.ID, size, mtime})
-			}
-			return nil
-		}
-		added = append(added, found{path, size, mtime})
+		entries = append(entries, entry{path, name, info.Size(), info.ModTime().Unix()})
 		return nil
 	})
 	if walkErr != nil {
 		return res, fmt.Errorf("walk %s: %w", root.Path, walkErr)
 	}
+
+	for _, en := range entries {
+		key, kind, isDisc := discItem(root.Path, en.path, flatBluray)
+		if !isDisc {
+			if !IsVideo(en.name) {
+				continue
+			}
+			key, kind = en.path, KindFile
+		}
+		if kind == KindFile && en.size < sampleMaxSize && strings.Contains(strings.ToLower(en.name), "sample") {
+			continue
+		}
+		it := items[key]
+		if it == nil {
+			it = &item{kind: kind}
+			items[key] = it
+			res.Seen++
+			if progress != nil && res.Seen%50 == 0 {
+				progress(Progress{Root: root.Path, FilesSeen: res.Seen})
+			}
+		}
+		it.size += en.size
+		it.mtime = max(it.mtime, en.mtime)
+	}
+
+	type found struct {
+		path, kind  string
+		size, mtime int64
+	}
+	var added []found
+	type changed struct{ id, size, mtime int64 }
+	var updated []changed
+	for path, it := range items {
+		if old, ok := existing[path]; ok {
+			delete(existing, path)
+			if old.Size != it.size || old.MTime != it.mtime {
+				updated = append(updated, changed{old.ID, it.size, it.mtime})
+			}
+			continue
+		}
+		added = append(added, found{path, it.kind, it.size, it.mtime})
+	}
+	// Deterministic insert order (map iteration is random).
+	sort.Slice(added, func(i, j int) bool { return added[i].path < added[j].path })
 	if progress != nil {
 		progress(Progress{Root: root.Path, FilesSeen: res.Seen})
 	}
@@ -121,7 +160,7 @@ func Sync(ctx context.Context, store *db.Store, root db.Root, progress func(Prog
 				return err
 			}
 			if _, err := tx.InsertFile(ctx, db.File{
-				RootID: root.ID, Path: f.path, Size: f.size, MTime: f.mtime, TitleID: titleID,
+				RootID: root.ID, Path: f.path, Kind: f.kind, Size: f.size, MTime: f.mtime, TitleID: titleID,
 				Season: id.Season, Episode: id.Episode, EpisodeEnd: id.EpisodeEnd,
 			}); err != nil {
 				return err
@@ -163,6 +202,9 @@ var (
 func Identify(rootPath, filePath string, cat db.Category) Identity {
 	base := filepath.Base(filePath)
 	p := Parse(base)
+	if isDiscFolderName(base) {
+		p = Parsed{} // "VIDEO_TS"/"BDMV": the title comes from the folders above
+	}
 
 	// Folders between the root and the file, nearest first.
 	var dirs []string

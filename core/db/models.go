@@ -47,11 +47,13 @@ type Root struct {
 	LastScan  int64    `json:"lastScan,omitempty"`
 }
 
-// File is one indexed video file.
+// File is one indexed playable item: a video file, or a whole disc rip
+// (Kind "dvd"/"bluray" = a folder path, "iso" = an image file).
 type File struct {
 	ID         int64  `json:"id"`
 	RootID     int64  `json:"rootId"`
 	Path       string `json:"path"`
+	Kind       string `json:"kind"` // file | dvd | bluray | iso
 	Size       int64  `json:"size"`
 	MTime      int64  `json:"mtime"`
 	TitleID    int64  `json:"titleId"`

@@ -357,7 +357,11 @@ func (c *cli) show(args []string) error {
 	}
 	fmt.Println("\nFiles:")
 	for _, f := range d.Files {
-		fmt.Printf("  #%d  %s  (%s)\n", f.ID, f.Path, humanSize(f.Size))
+		kind := ""
+		if f.Kind != "" && f.Kind != "file" {
+			kind = " [" + f.Kind + "]"
+		}
+		fmt.Printf("  #%d%s  %s  (%s)\n", f.ID, kind, f.Path, humanSize(f.Size))
 	}
 	return nil
 }

@@ -24,7 +24,7 @@ func (p Parsed) IsEpisode() bool { return p.Episode > 0 }
 // VideoExtensions are the file types the scanner indexes and the browser lists.
 var VideoExtensions = map[string]bool{
 	".mkv": true, ".mp4": true, ".avi": true, ".mov": true,
-	".webm": true, ".m4v": true, ".ts": true,
+	".webm": true, ".m4v": true, ".ts": true, ".m2ts": true, ".mts": true,
 }
 
 // IsVideo reports whether name has a supported video extension.
@@ -74,7 +74,7 @@ func maxYear() int { return time.Now().Year() + 1 }
 // It never fails; when nothing can be recognised the cleaned name is returned as the title.
 func Parse(name string) Parsed {
 	base := name
-	if IsVideo(base) || strings.EqualFold(filepath.Ext(base), ".srt") {
+	if ext := strings.ToLower(filepath.Ext(base)); IsVideo(base) || ext == ".srt" || ext == ".iso" {
 		base = strings.TrimSuffix(base, filepath.Ext(base))
 	}
 
