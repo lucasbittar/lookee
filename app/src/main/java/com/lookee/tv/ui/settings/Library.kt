@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -214,6 +215,10 @@ fun AddFolderScreen() {
     LaunchedEffect(step) {
         val s = step
         if (s is AddStep.Browse) entries = runCatching { app.core.browse(s.trail.last()) }.getOrDefault(emptyList())
+    }
+    // Focus the first item once it exists: the drive list loads after the screen appears.
+    LaunchedEffect(step, volumes, entries) {
+        withFrameNanos { }
         runCatching { first.requestFocus() }
     }
     BackHandler(enabled = step != AddStep.Volumes) {
@@ -241,7 +246,8 @@ fun AddFolderScreen() {
             }
             is AddStep.Browse -> {
                 val here = s.trail.last()
-                Text(here.substringAfterLast('/').ifEmpty { here }, style = MaterialTheme.typography.displaySmall, color = LookeeColors.Text)
+                val title = volumes.firstOrNull { it.path == here }?.label ?: here.substringAfterLast('/').ifEmpty { here }
+                Text(title, style = MaterialTheme.typography.displaySmall, color = LookeeColors.Text)
                 Text(here, fontFamily = JetBrainsMono, fontSize = 13.sp, color = LookeeColors.Muted)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     LookeeButton("Use this folder", onClick = { step = AddStep.Category(here) }, modifier = Modifier.focusRequester(first))

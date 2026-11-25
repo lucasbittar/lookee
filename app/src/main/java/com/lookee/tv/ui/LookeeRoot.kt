@@ -42,6 +42,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.runtime.withFrameNanos
 import androidx.core.content.ContextCompat
 import com.lookee.tv.LookeeApp
 import com.lookee.tv.ui.details.DetailsScreen
@@ -55,7 +57,7 @@ import com.lookee.tv.ui.library.SeriesScreen
 import com.lookee.tv.ui.library.TutorialsScreen
 import com.lookee.tv.ui.navigation.Destination
 import com.lookee.tv.ui.navigation.LocalNavigator
-import com.lookee.tv.ui.navigation.MinimalScroll
+import com.lookee.tv.ui.navigation.FollowFocusScroll
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import com.lookee.tv.ui.navigation.Navigator
 import com.lookee.tv.ui.navigation.Route
@@ -80,6 +82,8 @@ fun LookeeRoot() {
         requesters.getValue(dest).requestFocus()
     }
     val tabsRequester = remember { FocusRequester() }
+    val pushedRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
 
     // Library folders are read by path, which needs the storage permission (Decision 1).
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -112,8 +116,17 @@ fun LookeeRoot() {
     LaunchedEffect(pushed == null) {
         if (pushed == null) runCatching { tabsRequester.requestFocus() }
     }
+    // Opening a screen moves focus into it. Without this, focus stayed on the hidden button
+    // that opened it, and OK kept pressing that button (Add folder looked stuck).
+    LaunchedEffect(pushed) {
+        if (pushed != null) {
+            focusManager.clearFocus(force = true)
+            withFrameNanos { }
+            runCatching { pushedRequester.requestFocus() }
+        }
+    }
 
-    CompositionLocalProvider(LocalNavigator provides navigator, LocalBringIntoViewSpec provides MinimalScroll) {
+    CompositionLocalProvider(LocalNavigator provides navigator, LocalBringIntoViewSpec provides FollowFocusScroll) {
         Box(
             Modifier
                 .fillMaxSize()
@@ -126,7 +139,10 @@ fun LookeeRoot() {
                     .focusRequester(tabsRequester)
                     .focusRestorer { requesters.getValue(selected) }
                     // Safety net: lost focus re-enters on the selected tab, never Home.
-                    .focusProperties { enter = { requesters.getValue(selected) } }
+                    .focusProperties {
+                        // Covered by a pushed screen: the tabs can't take focus at all.
+                        enter = { if (navigator.stack.isNotEmpty()) FocusRequester.Cancel else requesters.getValue(selected) }
+                    }
                     .focusGroup()
                     .background(
                         Brush.radialGradient(
@@ -185,6 +201,7 @@ fun LookeeRoot() {
                         .fillMaxSize()
                         .background(LookeeColors.Bg)
                         // Focus stays inside the pushed screen until Back.
+                        .focusRequester(pushedRequester)
                         .focusProperties { exit = { FocusRequester.Cancel } }
                         .focusGroup(),
                 ) {
