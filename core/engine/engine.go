@@ -7,14 +7,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/lucasbittar/lookee/core/db"
+	"github.com/lucasbittar/lookee/core/logs"
 	"github.com/lucasbittar/lookee/core/metadata"
+	"github.com/lucasbittar/lookee/core/remote"
 	"github.com/lucasbittar/lookee/core/scanner"
+	"github.com/lucasbittar/lookee/core/torrent"
 )
 
 // Setting keys stored in the SQLite settings table.
@@ -22,14 +28,26 @@ const (
 	KeyTMDBAPIKey          = "tmdb_api_key"
 	KeyTMDBLanguage        = "tmdb_language"
 	KeyOpenSubtitlesAPIKey = "opensubtitles_api_key"
+	KeyOpenSubtitlesUser   = "opensubtitles_username"
+	KeyOpenSubtitlesPass   = "opensubtitles_password"
 	KeySubtitleLanguages   = "subtitle_languages"
+	KeyYTSURL              = "yts_url"
+	KeyEZTVURL             = "eztv_url"
+	KeyTorznabURLs         = "torznab_urls"   // one Torznab API URL (with apikey) per line
+	KeyStremioAddons       = "stremio_addons" // one add-on manifest URL per line
 )
 
-// secretKeys are never returned to a UI; only whether they are set.
-var secretKeys = map[string]bool{KeyTMDBAPIKey: true, KeyOpenSubtitlesAPIKey: true}
+// secretKeys are never returned to a UI; only whether they are set. Indexer URL lists
+// are secret because Torznab URLs carry API keys and add-on URLs often carry tokens.
+var secretKeys = map[string]bool{
+	KeyTMDBAPIKey: true, KeyOpenSubtitlesAPIKey: true, KeyOpenSubtitlesPass: true,
+	KeyTorznabURLs: true, KeyStremioAddons: true,
+}
 
 var knownKeys = map[string]bool{
 	KeyTMDBAPIKey: true, KeyTMDBLanguage: true, KeyOpenSubtitlesAPIKey: true, KeySubtitleLanguages: true,
+	KeyOpenSubtitlesUser: true, KeyOpenSubtitlesPass: true, KeyYTSURL: true, KeyEZTVURL: true,
+	KeyTorznabURLs: true, KeyStremioAddons: true,
 }
 
 // ErrScanRunning is returned when a scan is requested while another is in progress.
@@ -39,6 +57,13 @@ var ErrScanRunning = errors.New("a scan is already running")
 type Options struct {
 	DBPath   string
 	CacheDir string
+	// StreamCacheDir holds torrent pieces while streaming (default CacheDir/streams).
+	// On Android, prefer external storage so the small internal flash is spared.
+	StreamCacheDir string
+	// LogDir holds the rotating diagnostics log (default: next to the database).
+	LogDir string
+	// LogToStderr mirrors the log to stderr (CLI).
+	LogToStderr bool
 	// TMDBBaseURL overrides the TMDB endpoint (tests only).
 	TMDBBaseURL string
 }
@@ -48,6 +73,14 @@ type Engine struct {
 	store    *db.Store
 	opts     Options
 	scanning atomic.Bool
+	log      *slog.Logger
+	logFile  *logs.Rotating
+
+	streamMu sync.Mutex
+	stream   *torrent.Session
+
+	remoteMu sync.Mutex
+	remote   *remote.Server
 }
 
 // Open opens the database and prepares the cache directory.
@@ -57,15 +90,66 @@ func Open(opts Options) (*Engine, error) {
 			return nil, fmt.Errorf("create cache dir: %w", err)
 		}
 	}
+	if opts.StreamCacheDir == "" {
+		opts.StreamCacheDir = filepath.Join(cacheDirOrTemp(opts.CacheDir), "streams")
+	}
+	if opts.LogDir == "" {
+		opts.LogDir = filepath.Join(filepath.Dir(opts.DBPath), "logs")
+	}
 	store, err := db.Open(opts.DBPath)
 	if err != nil {
 		return nil, err
 	}
-	return &Engine{store: store, opts: opts}, nil
+	e := &Engine{store: store, opts: opts, log: logs.Discard}
+	if lf, err := logs.Open(opts.LogDir, logs.DefaultSize); err == nil {
+		e.logFile = lf
+		var extra []io.Writer
+		if opts.LogToStderr {
+			extra = append(extra, os.Stderr)
+		}
+		e.log = logs.NewLogger(lf, slog.LevelInfo, extra...)
+	}
+	// A crash or kill during streaming leaves pieces behind: remove them now.
+	if err := torrent.SweepCache(opts.StreamCacheDir); err != nil {
+		e.log.Warn("sweep stream cache", "err", err)
+	}
+	e.log.Info("engine started", "db", opts.DBPath, "streamCache", opts.StreamCacheDir)
+	return e, nil
 }
 
-// Close releases the database.
-func (e *Engine) Close() error { return e.store.Close() }
+func cacheDirOrTemp(dir string) string {
+	if dir != "" {
+		return dir
+	}
+	return os.TempDir()
+}
+
+// Close stops any stream or setup page and releases the database.
+func (e *Engine) Close() error {
+	e.StopStream()
+	e.StopRemoteSetup()
+	err := e.store.Close()
+	if e.logFile != nil {
+		e.log.Info("engine stopped")
+		_ = e.logFile.Close()
+	}
+	return err
+}
+
+// Logger is the engine's diagnostics logger.
+func (e *Engine) Logger() *slog.Logger { return e.log }
+
+// LogTail returns the newest n lines of the diagnostics log.
+func (e *Engine) LogTail(n int) []string {
+	if e.logFile == nil {
+		return nil
+	}
+	lines, err := e.logFile.Tail(n)
+	if err != nil {
+		return []string{"(could not read log: " + err.Error() + ")"}
+	}
+	return lines
+}
 
 // Store exposes the database for advanced callers (CLI debugging).
 func (e *Engine) Store() *db.Store { return e.store }
@@ -74,10 +158,12 @@ func (e *Engine) Store() *db.Store { return e.store }
 
 // SettingsView is the settings as shown to a UI. Secrets are reported only as set/unset.
 type SettingsView struct {
-	TMDBKeySet          bool   `json:"tmdbKeySet"`
-	OpenSubtitlesKeySet bool   `json:"openSubtitlesKeySet"`
-	TMDBLanguage        string `json:"tmdbLanguage"`
-	SubtitleLanguages   string `json:"subtitleLanguages"`
+	TMDBKeySet            bool   `json:"tmdbKeySet"`
+	OpenSubtitlesKeySet   bool   `json:"openSubtitlesKeySet"`
+	OpenSubtitlesLoginSet bool   `json:"openSubtitlesLoginSet"`
+	TMDBLanguage          string `json:"tmdbLanguage"`
+	SubtitleLanguages     string `json:"subtitleLanguages"`
+	TorrentSources        int    `json:"torrentSources"` // configured indexers
 }
 
 // Settings returns the UI view of the settings.
@@ -92,6 +178,8 @@ func (e *Engine) Settings(ctx context.Context) (SettingsView, error) {
 		TMDBLanguage:        all[KeyTMDBLanguage],
 		SubtitleLanguages:   all[KeySubtitleLanguages],
 	}
+	v.OpenSubtitlesLoginSet = all[KeyOpenSubtitlesUser] != "" && all[KeyOpenSubtitlesPass] != ""
+	v.TorrentSources = len(providersFrom(all))
 	if v.TMDBLanguage == "" {
 		v.TMDBLanguage = "en-US"
 	}

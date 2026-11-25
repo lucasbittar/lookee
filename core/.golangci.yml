@@ -10,6 +10,7 @@ linters:
         - (*database/sql.Rows).Close
         - (*database/sql.DB).Close
         - (io.Closer).Close
+        - (*os.File).Close
         # CLI terminal output, and flag sets created with ExitOnError (they exit, never return an error).
         - fmt.Fprint
         - fmt.Fprintf

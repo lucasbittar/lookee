@@ -39,11 +39,29 @@ Library:
 Settings:
   settings                            show settings (keys are masked)
   settings get <key>                  print a setting (secrets masked; --reveal to show)
-  settings set <key> <value>          keys: tmdb_api_key, tmdb_language, opensubtitles_api_key, subtitle_languages
+  settings set <key> <value>          keys: tmdb_api_key, tmdb_language, opensubtitles_api_key,
+                                      subtitle_languages, opensubtitles_username, opensubtitles_password,
+                                      yts_url, eztv_url, torznab_urls, stremio_addons
+  remote                              start the phone setup page (prints URL and PIN)
+  logs [N]                            print the last N diagnostics log lines (default 50)
+
+Streaming:
+  torrents <text> [--kind movie|tv]   search configured torrent sources by text
+  torrents --tmdb ID --kind movie|tv [--season S --episode E]
+  stream <magnet|file.torrent> [--file N] [--consume] [--seconds N]
+                                      stream a torrent; open the printed URL in VLC.
+                                      --consume reads it like a player (for testing)
+
+Subtitles:
+  subs sidecars <video>               subtitle files next to a video
+  subs search [--video PATH] [--title ID] [--tmdb ID --kind movie|tv --season S --episode E] [--query TEXT]
+  subs download <file-id>             download as UTF-8, prints the local path
+  subs shift <file> <ms>              UTF-8 copy shifted by ms (e.g. -1500)
 
 Global flags:
   --data DIR   where the database and cache live (default ~/.lookee)
   --json       print the JSON DTOs the TV app receives
+  -v           mirror the diagnostics log to stderr
 `
 
 func main() {
@@ -58,6 +76,7 @@ func run() error {
 	fs := flag.NewFlagSet("lookee-cli", flag.ExitOnError)
 	dataDir := fs.String("data", filepath.Join(home, ".lookee"), "data directory")
 	asJSON := fs.Bool("json", false, "print JSON")
+	verbose := fs.Bool("v", false, "mirror the diagnostics log to stderr")
 	fs.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 	fs.Parse(os.Args[1:])
 	args := fs.Args()
@@ -70,8 +89,9 @@ func run() error {
 	defer stop()
 
 	e, err := engine.Open(engine.Options{
-		DBPath:   filepath.Join(*dataDir, "lookee.db"),
-		CacheDir: filepath.Join(*dataDir, "cache"),
+		DBPath:      filepath.Join(*dataDir, "lookee.db"),
+		CacheDir:    filepath.Join(*dataDir, "cache"),
+		LogToStderr: *verbose,
 	})
 	if err != nil {
 		return err
@@ -103,6 +123,16 @@ func run() error {
 		return c.fix(rest)
 	case "browse":
 		return c.browse(rest)
+	case "remote":
+		return c.remote()
+	case "logs":
+		return c.logs(rest)
+	case "torrents":
+		return c.torrents(rest)
+	case "stream":
+		return c.stream(rest)
+	case "subs":
+		return c.subs(rest)
 	case "settings":
 		return c.settings(rest)
 	case "help", "-h", "--help":

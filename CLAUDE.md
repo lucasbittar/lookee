@@ -178,6 +178,7 @@ The detailed plan — tasks, exit criteria, decisions and risks for each phase �
 ## 8. Coding Conventions for Claude Code
 
 - **Keep Kotlin Strictly Presentation-Only:** Never duplicate HTTP clients, regex parsers, or SQLite databases in Kotlin—all business logic and persistence live in `core/`.
+- **Polished UI Is a Requirement:** The interface must look sleek and modern (the user left Kodi over its UI). No placeholder styling in shipped screens; follow the agreed design (ROADMAP Decision 15) and discuss visual direction with the user before building new screens.
 - **Strict D-Pad Focus:** Every clickable card, button, and player control in Compose must support D-pad directional focus with visible scale/border highlights (`BorderStroke` on focus) and no touch-only gestures.
 - **Mi Box Resource Discipline:** Enforce automatic cleanup of temporary torrent pieces when playback ends, and allow configuring API keys (`TMDB_API_KEY`, `OPENSUBTITLES_API_KEY`) inside the TV Settings screen (stored in Go's SQLite `settings` table) so the APK works out of the box without hardcoding secrets.
 - **Phone Settings Page Stays Locked Down:** The LAN settings server is off unless the user opens the setup screen, requires the PIN shown on the TV, shuts down on save or timeout, and never returns stored secrets to the browser.

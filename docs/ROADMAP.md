@@ -10,7 +10,7 @@ Each phase ends with **exit criteria** that can be checked with a command or on 
 |---|---|---|---|
 | 0 | Toolchain & repo scaffolding | macOS | ✅ |
 | 1 | Go core foundation & CLI harness | macOS | ✅ |
-| 2 | Torrent streamer & subtitle client | macOS | ⬜ |
+| 2 | Torrent streamer & subtitle client | macOS | 🟨 |
 | 3 | gomobile binding & Android TV shell | macOS + emulator | ⬜ |
 | 4 | TV screens & USB storage | emulator + Mi Box | ⬜ |
 | 5 | Player & subtitle hot-reload | Mi Box | ⬜ |
@@ -147,7 +147,8 @@ The `Makefile` sets `ANDROID_HOME`, `ANDROID_NDK_HOME` and `JAVA_HOME` itself an
 - [ ] Gradle project: Kotlin DSL, version catalog, `minSdk 26`, `targetSdk 34`, `app/libs/lookeecore.aar` as a file dependency.
 - [ ] Manifest: `LEANBACK_LAUNCHER` intent filter, banner, `android.software.leanback` required, touchscreen not required, `INTERNET`, storage permissions, and a network security config that allows cleartext to `127.0.0.1` only (needed for the loopback stream).
 - [ ] `LookeeApp.kt` calls `InitEngine`; `GoCoreBridge.kt` wraps every call in `withContext(Dispatchers.IO)` and decodes with `kotlinx.serialization`.
-- [ ] Theme (`#0D0F12`), a shared focusable-card component with scale + border on focus, and the navigation rail with seven empty destinations.
+- [ ] **Design pass with the user (Decision 15)** before building screens: visual direction, type scale, color, motion, focus treatment, and mockups of Home, Details and the player OSD.
+- [ ] Theme and core components built to that design (focusable card, buttons, rows, navigation), plus the navigation with seven destinations.
 - [ ] `make serve-apk`: serve the debug APK on the LAN and print the URL to type into *Downloader* on the TV (Decision 12).
 - [x] Debug builds also bind `android/386`, because the Android 9 TV emulator image is 32-bit x86 (`make bind` does this; `make bind-release` is ARM-only).
 
@@ -186,7 +187,8 @@ The `Makefile` sets `ANDROID_HOME`, `ANDROID_NDK_HOME` and `JAVA_HOME` itself an
 
 **Tasks**
 
-- [ ] Player screen with ExoPlayer for `file://` paths and the loopback stream URL.
+- [ ] Spike on the box first (Decision 14): play a `.VOB`, an `.m2ts`, an MP2-audio file and a DTS file from the library with Media3; decide FFmpeg extension vs. Go remux vs. libVLC fallback.
+- [ ] Player screen with ExoPlayer for `file://` paths and the loopback stream URL; custom OSD (not the stock `PlayerView` controls).
 - [ ] D-pad OSD: play/pause, ±10 s seek, hold-to-scrub, audio track and subtitle track pickers.
 - [ ] Resume: save position every few seconds and on stop; prompt "Resume from 43:10?" on Details.
 - [ ] Sidecar and embedded subtitles; online search panel inside the player.
@@ -253,6 +255,8 @@ These are places where the plan departs from, or tightens, `CLAUDE.md`. Each lis
     - *Install:* Phase 3 adds `make serve-apk`, which serves the APK over the LAN for the free *Downloader* app on the TV. `make install` stays for when debugging is on.
     - *Logs:* the Go core writes a rolling log file (Phase 2, `core/logs`). The phone settings page gets a PIN-protected "Diagnostics" view that shows it, so errors can be read from a phone without `logcat`.
 13. **Disc rips are indexed and played.** (Decided 2026-11-24.) Each rip is one library item with a `kind`: a folder of `.VOB/.IFO/.BUP` → `dvd`; a `BDMV` folder, or a folder of flattened Blu-ray files (`.mpls/.clpi` next to `.m2ts`) → `bluray`; an `.iso` → `iso`. Loose `.m2ts/.mts` are ordinary files. Titles come from the `Title (Year)` folder. Playback is Phase 5 work, verified on the box; anything the box cannot decode must show a clear message, never fail silently.
+14. **Playback engine: our UI on a proven engine, Media3 first, libVLC as a candidate fallback.** Writing a decoder is out of scope; the player UI (OSD, panels, subtitle controls) is fully ours whichever engine decodes. Media3 stays the primary engine because it drives the MIBOX3's hardware decoders directly (needed for 4K HEVC on a weak box). The Phase 5 spike decides whether formats Media3 can't handle (DVD `.VOB`/ISO, `.m2ts`, MP2/DTS audio) use the Media3 FFmpeg audio extension, the Go core serving a remuxed stream, or an embedded **libVLC** (LGPL, plays every format in the library, adds ~15–25 MB per ABI). Context: the user's previous setup, Kodi, played all of these formats; its UI, not playback, was the problem.
+15. **UI quality is a first-class requirement.** The user wants a polished, sleek, modern interface. This was the main problem with Kodi. Before any Phase 4 screen is built, there is a design pass with the user: visual direction, typography, motion, focus states, a component set, and mockups of Home, Details and the player OSD. Phase 3 builds the theme and core components to that standard rather than placeholders.
 
 ## Risks
 

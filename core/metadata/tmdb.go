@@ -359,3 +359,14 @@ func yearOf(date string) int {
 	y, _ := strconv.Atoi(date[:4])
 	return y
 }
+
+// IMDbID returns the IMDb id ("tt…") of a movie or show, or "" if TMDB has none.
+func (c *Client) IMDbID(ctx context.Context, kind string, id int64) (string, error) {
+	var resp struct {
+		IMDbID string `json:"imdb_id"`
+	}
+	if err := c.get(ctx, fmt.Sprintf("/%s/%d/external_ids", kind, id), nil, &resp); err != nil {
+		return "", err
+	}
+	return resp.IMDbID, nil
+}
