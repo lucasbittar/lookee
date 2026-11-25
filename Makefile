@@ -23,50 +23,51 @@ APK          := app/build/outputs/apk/debug/app-debug.apk
 TARGETS      ?= android/arm,android/arm64
 DEBUG_TARGETS ?= $(TARGETS),android/386
 MIBOX_IP     ?=
+# Pure-Go builds of anacrolix's optional native parts: libutp is C++ and would need
+# libc++_shared.so, which gomobile does not package; its SQLite piece store is unused.
+ANDROID_TAGS ?= purego_utp,nosqlite
 
-.PHONY: all test lint cli cli-android push-cli bind bind-release apk install devices clean doctor
+.PHONY: all test lint cli cli-android push-cli serve-apk bind bind-release apk install devices clean doctor
 
 all: test bind apk
 
 ## test: run Go unit tests
 test:
-	cd core && go test ./...
+	cd core && go test -tags $(ANDROID_TAGS) ./...
 
 ## lint: vet and golangci-lint the Go core
 lint:
-	cd core && go vet ./... && $(GOLANGCI_LINT) run ./...
+	cd core && go vet -tags $(ANDROID_TAGS) ./... && $(GOLANGCI_LINT) run --build-tags $(ANDROID_TAGS) ./...
 
 ## cli: build the local harness to core/lookee-cli
 cli:
 	cd core && go build -o lookee-cli ./cmd/lookee-cli
 
 NDK_BIN := $(firstword $(wildcard $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/*/bin))
-NDK_CXX_LIB := $(firstword $(wildcard $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/*/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so))
 
 ## cli-android: build lookee-cli for the Mi Box (android/arm with cgo, so it uses Android's DNS resolver)
 cli-android:
 	cd core && CGO_ENABLED=1 GOOS=android GOARCH=arm GOARM=7 \
 		CC=$(NDK_BIN)/armv7a-linux-androideabi26-clang CXX=$(NDK_BIN)/armv7a-linux-androideabi26-clang++ \
-		go build -trimpath -ldflags="-s -w" -o lookee-cli-android ./cmd/lookee-cli
+		go build -tags $(ANDROID_TAGS) -trimpath -ldflags="-s -w" -o lookee-cli-android ./cmd/lookee-cli
 
-## push-cli: copy the Android CLI to /data/local/tmp on the Mi Box (run with LD_LIBRARY_PATH=/data/local/tmp)
+## push-cli: copy the Android CLI to /data/local/tmp on the Mi Box
 push-cli: cli-android
 ifneq ($(MIBOX_IP),)
 	$(ADB) connect $(MIBOX_IP):5555
 endif
 	$(ADB) push core/lookee-cli-android /data/local/tmp/lookee-cli
-	$(ADB) push $(NDK_CXX_LIB) /data/local/tmp/libc++_shared.so
 	$(ADB) shell chmod 755 /data/local/tmp/lookee-cli
 
 ## bind: build the Android library (debug: includes x86 for the emulator)
 bind:
 	@mkdir -p app/libs
-	cd core && $(GOMOBILE) bind -target=$(DEBUG_TARGETS) -androidapi 26 -javapkg com.lookee.core -o ../$(AAR) .
+	cd core && $(GOMOBILE) bind -tags $(ANDROID_TAGS) -target=$(DEBUG_TARGETS) -androidapi 26 -javapkg com.lookee.core -o ../$(AAR) .
 
 ## bind-release: ARM-only Android library for release builds
 bind-release:
 	@mkdir -p app/libs
-	cd core && $(GOMOBILE) bind -target=$(TARGETS) -androidapi 26 -javapkg com.lookee.core -trimpath -ldflags="-s -w" -o ../$(AAR) .
+	cd core && $(GOMOBILE) bind -tags $(ANDROID_TAGS) -target=$(TARGETS) -androidapi 26 -javapkg com.lookee.core -trimpath -ldflags="-s -w" -o ../$(AAR) .
 
 ## apk: build the debug APK (Phase 3+)
 apk: $(AAR)
@@ -81,6 +82,16 @@ ifneq ($(MIBOX_IP),)
 	$(ADB) connect $(MIBOX_IP):5555
 endif
 	$(ADB) install -r $(APK)
+
+## serve-apk: serve the debug APK on the LAN for the TV's Downloader app (no ADB needed, Decision 12)
+SERVE_PORT ?= 8686
+serve-apk: $(APK)
+	@ip=$$(ipconfig getifaddr en0 || ipconfig getifaddr en1); \
+	echo ""; echo "  On the TV, open Downloader and enter:  http://$$ip:$(SERVE_PORT)/app-debug.apk"; echo "  Ctrl-C to stop."; echo ""; \
+	cd $(dir $(APK)) && python3 -m http.server $(SERVE_PORT) --bind $$ip
+
+$(APK):
+	$(MAKE) apk
 
 ## devices: show the Mi Box's model, Android version and ABIs
 devices:

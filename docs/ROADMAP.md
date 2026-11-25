@@ -11,7 +11,7 @@ Each phase ends with **exit criteria** that can be checked with a command or on 
 | 0 | Toolchain & repo scaffolding | macOS | ✅ |
 | 1 | Go core foundation & CLI harness | macOS | ✅ |
 | 2 | Torrent streamer & subtitle client | macOS | ✅ |
-| 3 | gomobile binding & Android TV shell | macOS + emulator | ⬜ |
+| 3 | gomobile binding & Android TV shell | macOS + emulator | 🟨 |
 | 4 | TV screens & USB storage | emulator + Mi Box | ⬜ |
 | 5 | Player & subtitle hot-reload | Mi Box | ⬜ |
 | 6 | End-to-end build, CI & release | macOS + GitHub | ⬜ |
@@ -61,7 +61,7 @@ The `Makefile` sets `ANDROID_HOME`, `ANDROID_NDK_HOME` and `JAVA_HOME` itself an
 **Tasks**
 
 - [x] `core/go.mod` (module `github.com/lucasbittar/lookee/core`, Go 1.26+), package layout from `CLAUDE.md` §5, plus `core/engine` (Decision 9).
-- [x] `db/`: open `modernc.org/sqlite` in WAL mode, versioned migrations, and the schema:
+- [x] `db/`: open SQLite in WAL mode (`modernc.org/sqlite` at first, `mattn/go-sqlite3` since Phase 3, Decision 16), versioned migrations, and the schema:
   - `settings(key, value)` — API keys, TMDB language, preferred subtitle languages.
   - `library_roots(id, path, category, available, last_scan)` — category is `MOVIES`, `TV_SHOWS`, `CONCERTS` or `TUTORIALS`.
   - `media_files(id, root_id, path, size, mtime, title_id, season, episode, episode_end)`.
@@ -136,7 +136,7 @@ Implementation notes (2026-11-24):
 
 **Tasks**
 
-- [ ] `core/lookeecore.go`: the exported surface. Every function takes primitives and returns `(string, error)` with a JSON body.
+- [x] `core/lookeecore.go`: the exported surface. Every function takes primitives and returns `(string, error)` with a JSON body.
 
   | Area | Functions |
   |---|---|
@@ -150,19 +150,29 @@ Implementation notes (2026-11-24):
   | Discover | `GetTrending`, `SearchTMDB`, `SearchTorrents` |
   | Streaming | `StartStream(magnet, cb StreamCallback)`, `StopStream`, `ClearStreamCache` |
 
-- [ ] JSON DTO contract test in Go (golden files) so Kotlin and Go cannot drift silently.
-- [ ] Gradle project: Kotlin DSL, version catalog, `minSdk 26`, `targetSdk 34`, `app/libs/lookeecore.aar` as a file dependency.
-- [ ] Manifest: `LEANBACK_LAUNCHER` intent filter, banner, `android.software.leanback` required, touchscreen not required, `INTERNET`, storage permissions, and a network security config that allows cleartext to `127.0.0.1` only (needed for the loopback stream).
-- [ ] `LookeeApp.kt` calls `InitEngine`; `GoCoreBridge.kt` wraps every call in `withContext(Dispatchers.IO)` and decodes with `kotlinx.serialization`.
-- [ ] **Design pass with the user (Decision 15)** before building screens: visual direction, type scale, color, motion, focus treatment, and mockups of Home, Details and the player OSD.
-- [ ] Theme and core components built to that design (focusable card, buttons, rows, navigation), plus the navigation with seven destinations.
-- [ ] `make serve-apk`: serve the debug APK on the LAN and print the URL to type into *Downloader* on the TV (Decision 12).
+- [x] JSON DTO contract test in Go (golden files) so Kotlin and Go cannot drift silently.
+- [x] Gradle project: Kotlin DSL, version catalog, `minSdk 26`, `targetSdk 34`, `app/libs/lookeecore.aar` as a file dependency.
+- [x] Manifest: `LEANBACK_LAUNCHER` intent filter, banner, `android.software.leanback` required, touchscreen not required, `INTERNET`, storage permissions, and a network security config that allows cleartext to `127.0.0.1` only (needed for the loopback stream).
+- [x] `LookeeApp.kt` calls `InitEngine`; `GoCoreBridge.kt` wraps every call in `withContext(Dispatchers.IO)` and decodes with `kotlinx.serialization`.
+- [ ] **Design pass with the user (Decision 15)** before building screens: visual direction, type scale, color, motion, focus treatment, and mockups of Home, Details and the player OSD. *Colors, type, focus and components are agreed (`docs/DESIGN.md`); the Home, Details and OSD layout mockups are still to do, before Phase 4.*
+- [x] Theme and core components built to that design (focusable card, buttons, rows, navigation), plus the navigation with seven destinations.
+- [x] `make serve-apk`: serve the debug APK on the LAN and print the URL to type into *Downloader* on the TV (Decision 12).
 - [x] Debug builds also bind `android/386`, because the Android 9 TV emulator image is 32-bit x86 (`make bind` does this; `make bind-release` is ARM-only).
+
+**Implementation notes**
+
+- The bridge (`docs/BRIDGE.md`) exports the whole core. Known errors cross as `lookee:<code>: …` messages, and every JSON shape is pinned by `core/testdata/golden`. Kotlin's `BridgeContractTest` decodes those files strictly. The golden files are declared as Gradle test inputs: without that, Gradle reused the cached test result and missed a renamed field.
+- **SQLite driver switched to `mattn/go-sqlite3` (Decision 16).** On the Mi Box, the app crashed at start with `SIGSYS`. modernc's emulated libc calls `statx` on 32-bit targets and expects `ENOSYS` back. Android 9's app seccomp filter kills the process instead. The `adb shell` streaming test in Phase 2 didn't catch this, because the shell isn't under the app sandbox.
+- Android builds use the tags `purego_utp,nosqlite` (`ANDROID_TAGS` in the `Makefile`). anacrolix's default uTP is C++ (`go-libutp`) and needs `libc++_shared.so`, which gomobile doesn't package. Its SQLite piece store is unused. `make test` and `make lint` use the same tags, so they cover what ships.
+- The UI was checked on the emulator and on the Mi Box. The top navigation selects a tab when it gets focus, and Back steps content → tab → Home → exit. Phone setup works from the TV end to end: the PIN, a save from another device, and the "Settings saved" callback from Go. A focused button that vanished on a state change used to throw focus to the first tab, and so to Home. Each card now keeps one button across states, and lost focus re-enters on the selected tab.
+- The app uses about 63 MB of memory at idle on the box, in a debug build. Debug builds are slow there (unoptimised dex), so D-pad speed gets judged on a release build in Phase 4.
+- `getExternalFilesDir` fails while the drive is unplugged (USB debugging on). The core then falls back to `cacheDir` for torrent pieces.
 
 **Exit criteria**
 
-- `make bind && ./gradlew assembleDebug` succeeds.
-- In the Android TV emulator and on the Mi Box: the app appears on the launcher, opens, the rail is fully navigable with the D-pad, and a debug screen shows the settings JSON returned by Go.
+- ✅ `make bind && ./gradlew assembleDebug` succeeds, and the Kotlin contract tests pass.
+- ✅ In the Android TV emulator and on the Mi Box: the app is registered with the TV launcher, opens, the navigation is fully usable with the D-pad, and the Settings → Diagnostics card shows the settings JSON returned by Go.
+- ⬜ The layout mockups (Home, Details, OSD) are agreed with the user before Phase 4 starts.
 
 ---
 
@@ -256,7 +266,7 @@ These are places where the plan departs from, or tightens, `CLAUDE.md`. Each lis
 7. **Phone settings page.** Typing a 32-character API key with a D-pad is painful, so the Go core serves a settings form on the LAN that the TV advertises with a QR code. It is plain HTTP on the home network, so it is locked down: off by default, PIN shown only on the TV, auto-shutdown, write-only for secrets. The server and form live in `core/remote/` (built and tested in Phase 2); the TV screen is Phase 4.
 8. **Licence is MIT.**
 9. **`core/engine` is the application layer.** The spec's tree has no place for the logic that joins scanner, TMDB and database. `engine` holds it, and both `lookee-cli` and `lookeecore.go` call it, so the CLI tests exactly what the TV runs and the FFI file stays a thin JSON wrapper.
-10. **Go 1.26 minimum.** Current `modernc.org/sqlite` and `x/mobile` require it, so the spec's "Go 1.23+" is raised.
+10. **Go 1.26 minimum.** Current `x/mobile` and other dependencies require it, so the spec's "Go 1.23+" is raised.
 11. **gomobile Java package is `com.lookee.core`.** Kotlin imports `com.lookee.core.lookeecore.Lookeecore`.
 12. **ADB-free install and diagnostics, because the MIBOX3 cannot use ADB and the USB drive at the same time.**
     - *Install:* Phase 3 adds `make serve-apk`, which serves the APK over the LAN for the free *Downloader* app on the TV. `make install` stays for when debugging is on.
@@ -265,9 +275,11 @@ These are places where the plan departs from, or tightens, `CLAUDE.md`. Each lis
 14. **Playback engine: our UI on a proven engine, Media3 first, libVLC as a candidate fallback.** Writing a decoder is out of scope; the player UI (OSD, panels, subtitle controls) is fully ours whichever engine decodes. Media3 stays the primary engine because it drives the MIBOX3's hardware decoders directly (needed for 4K HEVC on a weak box). The Phase 5 spike decides whether formats Media3 can't handle (DVD `.VOB`/ISO, `.m2ts`, MP2/DTS audio) use the Media3 FFmpeg audio extension, the Go core serving a remuxed stream, or an embedded **libVLC** (LGPL, plays every format in the library, adds ~15–25 MB per ABI). Context: the user's previous setup, Kodi, played all of these formats; its UI, not playback, was the problem.
 15. **UI quality is a first-class requirement.** The user wants a polished, sleek, modern interface. This was the main problem with Kodi. Before any Phase 4 screen is built, there is a design pass with the user: visual direction, typography, motion, focus states, a component set, and mockups of Home, Details and the player OSD. Phase 3 builds the theme and core components to that standard rather than placeholders. **Visual language approved (2026-11-25):** the phone setup page is the reference. Its dark palette, `#F2B544` yellow accent, gradient "l" mark and card style carry across the app, as specified in [`DESIGN.md`](DESIGN.md). The design pass now covers layouts (Home, Details, OSD), not colors.
 
+16. **SQLite through `mattn/go-sqlite3` (cgo), not `modernc.org/sqlite`.** The pure-Go driver crashed the app on the 32-bit Mi Box. Its libc emulation calls `statx(2)`, which Android 9's app seccomp policy kills instead of rejecting. mattn compiles the real SQLite with the NDK, uses bionic, and needs only `libc.so`. The cost is a C compile in `make bind` (~45 s for three ABIs) and cgo for desktop tests. This was the fallback already listed under Risk 1.
+
 ## Risks
 
-1. **`anacrolix/torrent` on 32-bit Android.** ~~SQLite~~ retired: the core's test suites pass on the MIBOX3. Streaming retired for the CLI build: a real torrent streamed on the box at 48.5 MB peak RSS (Phase 2 exit criteria); the in-app run comes in Phase 3. The box is confirmed 32-bit only, so `armeabi-v7a` is likely the ABI that matters, and it is the less-travelled path for both libraries. Mitigation: `gomobile bind` for both ARM targets is an exit criterion from Phase 1 onward, and Phase 3 runs it on the real box before any UI is built. Fallback for SQLite: `mattn/go-sqlite3` with CGO through the NDK.
+1. **`anacrolix/torrent` on 32-bit Android.** ~~SQLite~~ retired: the core's test suites pass on the MIBOX3, and inside the app the fallback driver is now in use (Decision 16), because the pure-Go one hit the app seccomp filter. Streaming retired for the CLI build: a real torrent streamed on the box at 48.5 MB peak RSS (Phase 2 exit criteria); the in-app run comes in Phase 3. The box is confirmed 32-bit only, so `armeabi-v7a` is likely the ABI that matters, and it is the less-travelled path for both libraries. Mitigation: `gomobile bind` for both ARM targets is an exit criterion from Phase 1 onward, and Phase 3 runs it on the real box before any UI is built. Fallback for SQLite: `mattn/go-sqlite3` with CGO through the NDK.
 2. **Codec coverage.** ExoPlayer relies on the device decoders. DTS and some AC3 audio only work as passthrough to a capable receiver, and odd AVI codecs may not play at all. Mitigation if it bites: add a Media3 FFmpeg audio decoder extension in Phase 5.
 3. **Memory and storage on the box.** 2 GB RAM with only ~500 MB free at idle, and 8 GB flash. The torrent client needs a hard memory budget (Phase 2 exit criterion: measure RSS while streaming). Mitigation: capped torrent connections, no mmap storage, bounded image cache, cache sweep at startup and at player exit.
 4. **Indexer churn.** YTS and EZTV endpoints change. Mitigation: URLs are settings; the provider interface makes adding Torznab sources a configuration change.

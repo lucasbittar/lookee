@@ -161,3 +161,23 @@ func must(t *testing.T, err error) {
 		t.Fatal(err)
 	}
 }
+
+// The pragmas are spelled differently per driver: check they really apply on every connection.
+func TestConnectionPragmas(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "p.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for pragma, want := range map[string]string{
+		"journal_mode": "wal", "foreign_keys": "1", "busy_timeout": "5000", "synchronous": "1",
+	} {
+		var got string
+		if err := s.sql.QueryRow("PRAGMA " + pragma).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Errorf("PRAGMA %s = %q, want %q", pragma, got, want)
+		}
+	}
+}

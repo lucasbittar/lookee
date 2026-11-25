@@ -18,7 +18,7 @@
 
 ### A. Go Core Engine (`core/` — Go 1.26+)
 - **FFI Bridge:** `golang.org/x/mobile/bind` (`gomobile bind`) exporting clean, JSON-serialized APIs to Kotlin (avoiding complex Go struct/slice FFI restrictions).
-- **Database:** `modernc.org/sqlite` + `database/sql` (pure Go SQLite driver—zero CGO cross-compilation issues on Android `arm64`/`arm`).
+- **Database:** `mattn/go-sqlite3` + `database/sql` (SQLite compiled with the NDK through cgo; the pure-Go `modernc.org/sqlite` crashes inside the Android 9 app sandbox on 32-bit, see ROADMAP Decision 16).
 - **Torrent Engine:** `github.com/anacrolix/torrent` configured for sequential piece prioritization, exposing torrent files as Go `io.ReadSeeker` streams.
 - **Local Stream Server:** Go standard library `net/http` (`http.ServeContent`) serving active torrent streams on `http://127.0.0.1:<dynamic_port>/stream` with full HTTP `206 Partial Content` byte-range seeking support.
 - **HTTP Client:** Go `net/http` for TMDB v3 API, OpenSubtitles REST API, and torrent indexers (YTS, EZTV, configurable JSON endpoints).
@@ -93,7 +93,7 @@ lookee/
 │   ├── engine/
 │   │   └── engine.go                # Application layer shared by lookee-cli and lookeecore.go
 │   ├── db/
-│   │   ├── sqlite.go                # modernc.org/sqlite migrations & queries
+│   │   ├── sqlite.go                # SQLite (mattn/go-sqlite3) migrations & queries
 │   │   └── models.go
 │   ├── scanner/
 │   │   ├── scanner.go               # Incremental filesystem walker
@@ -167,7 +167,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 The detailed plan — tasks, exit criteria, decisions and risks for each phase — lives in [`docs/ROADMAP.md`](docs/ROADMAP.md). Update the status table there when a phase starts or finishes. Where the roadmap's **Decisions** section differs from sections 1–5 above, the roadmap wins.
 
 - **Phase 0 — Toolchain & Repo Scaffolding:** Install JDK 17, Android SDK/NDK, `gomobile` and `adb`; add `Makefile`; confirm the Mi Box ABI. Target device: **MIBOX3, Android 9 (API 28), `armeabi-v7a` only, ~500 MB free RAM**. Its single USB port leaves host mode while USB debugging is on, so ADB and the library drive cannot be used together (see ROADMAP Decision 12).
-- **Phase 1 — Go Core Foundation & CLI Harness:** Initialize `core/go.mod`, implement `modernc.org/sqlite` schema, regex filename parser (with unit tests), TMDB client, and `cmd/lookee-cli` so everything can be verified locally on macOS.
+- **Phase 1 — Go Core Foundation & CLI Harness:** Initialize `core/go.mod`, implement the SQLite schema, regex filename parser (with unit tests), TMDB client, and `cmd/lookee-cli` so everything can be verified locally on macOS.
 - **Phase 2 — Go Torrent Streamer & Subtitle Client:** Implement `anacrolix/torrent` sequential streamer with `http.ServeContent` byte-range server, torrent search providers, OpenSubtitles downloader, and the phone settings page server (`core/remote/`).
 - **Phase 3 — gomobile Binding & Android TV Shell:** Export JSON FFI functions in `lookeecore.go`, generate `lookeecore.aar`, and scaffold the Jetpack Compose for TV project with Leanback manifest, D-pad focus styles, and `GoCoreBridge.kt`.
 - **Phase 4 — TV Screens & USB Storage Integration:** Build Home, Movies/Series/Concerts carousels, Media Details (with cast photos and Fix Match), unindexed Tutorials folder browser, Discover/Torrent search, and Settings (USB folder picker, in-app API key storage, and "Set up from your phone" QR + PIN screen).

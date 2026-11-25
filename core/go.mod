@@ -4,8 +4,8 @@ go 1.26.0
 
 require (
 	github.com/anacrolix/torrent v1.63.0
+	github.com/mattn/go-sqlite3 v1.14.53
 	golang.org/x/text v0.44.0
-	modernc.org/sqlite v1.63.0
 )
 
 require (
@@ -94,6 +94,7 @@ require (
 	modernc.org/libc v1.80.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
+	modernc.org/sqlite v1.63.0 // indirect
 	zombiezen.com/go/sqlite v0.13.1 // indirect
 )
 

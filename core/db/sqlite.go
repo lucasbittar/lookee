@@ -1,4 +1,9 @@
-// Package db is lookee's SQLite persistence layer (pure Go via modernc.org/sqlite).
+// Package db is lookee's SQLite persistence layer.
+//
+// The driver is mattn/go-sqlite3: the real SQLite C library, compiled with the NDK for
+// Android. The pure-Go modernc.org/sqlite crashed the app on 32-bit Android 9: its
+// emulated libc calls statx(2), which the app sandbox's seccomp filter kills instead of
+// rejecting (ROADMAP Decision 16).
 package db
 
 import (
@@ -13,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // ErrNotFound is returned when a requested row does not exist.
@@ -121,11 +126,11 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("create db dir: %w", err)
 	}
 	q := url.Values{}
-	q.Add("_pragma", "journal_mode(WAL)")
-	q.Add("_pragma", "foreign_keys(1)")
-	q.Add("_pragma", "busy_timeout(5000)")
-	q.Add("_pragma", "synchronous(NORMAL)")
-	sqlDB, err := sql.Open("sqlite", "file:"+path+"?"+q.Encode())
+	q.Set("_journal_mode", "WAL")
+	q.Set("_foreign_keys", "1")
+	q.Set("_busy_timeout", "5000")
+	q.Set("_synchronous", "NORMAL")
+	sqlDB, err := sql.Open("sqlite3", "file:"+path+"?"+q.Encode())
 	if err != nil {
 		return nil, err
 	}
