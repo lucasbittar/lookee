@@ -69,11 +69,28 @@ Motion is short and quiet: 120–200 ms ease-out for focus, and a 250 ms fade or
 
 Copy is plain and friendly, and errors say what to do next. For example, the page says "That PIN doesn't match the one on the TV." It never says "Error 401".
 
+## Layouts (agreed 2026-11-25)
+
+The mockups live on the [layouts canvas](https://claude.ai/artifact/VpFhyAz42B5QG4wgGs3Tai). The user's decisions:
+
+- **Home banner follows focus.** The big banner at the top shows the backdrop, title, details and synopsis of whichever card is focused.
+- **Details hides the top navigation.** It's a pushed screen with a small breadcrumb; Back returns to the row it came from.
+- **Card shapes are mixed.** Wide 16:9 stills for anything in progress (Continue watching, Series up next), and 2:3 portrait posters for browsing (Recently added, the Movies wall).
+- **Row spacing.** There are at least 32 dp (64 px at 1080p) between the bottom of a row, including the captions under its cards, and the next row's label. That way a focused card's scale and glow never touch the next row. This was the user's one note on the first mockup.
+- **Each category gets its own look** (see below). Focus is the same yellow everywhere, so the remote always feels the same.
+
+## Category looks (proposal, awaiting approval)
+
+| Category | Mood | Tint (ambient glow and labels only) | Layout | Type |
+|---|---|---|---|---|
+| Movies | "Cinema", like a projector beam | Accent yellow | A poster wall (2:3, seven across) with sort chips | The "Movies" title in Fraunces (serif) |
+| Series | "Up next" | Blue `#6E9CF5` | Wide cards with the next episode, plus per-episode season progress segments | Inter |
+| Concerts | "Live", like stage lights | Rose `#E8608C` | Large gig-poster cards with the artist name over the image, Blu-ray/DVD/ISO badges, and "More artists" chips | Artist names in Bebas Neue |
+| Tutorials | "Workshop", like a notebook | Teal `#4FC3D9` | No posters: folders on the left, numbered lessons on the right with duration, progress and a CC badge | Lesson numbers and paths in JetBrains Mono |
+
 ## Still to decide in the design pass
 
 The token set above is settled. Still open:
 
-- the layout of Home, Details and the player OSD (mockups first);
-- the poster aspect ratio and row density;
 - backdrop treatment (gradient scrim strength);
-- whether Concerts get their own visual flavour.
+- final approval of the category looks above (then their fonts get bundled like Inter).
