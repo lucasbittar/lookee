@@ -150,6 +150,24 @@ func SetSetting(key, value string) error {
 	return err
 }
 
+// SeedResult reports how many settings a defaults file filled in.
+type SeedResult struct {
+	Applied int `json:"applied"`
+}
+
+// SeedDefaultSettings applies a private defaults file (torrent sources and languages; see
+// docs/SOURCES.md). Only empty settings are filled, and the same file is applied once.
+func SeedDefaultSettings(defaultsJSON string) (string, error) {
+	return call(func(ctx context.Context, e *engine.Engine) (any, error) {
+		n, err := e.SeedSettings(ctx, []byte(defaultsJSON))
+		if err != nil {
+			e.Logger().Warn("defaults file rejected", "err", err)
+			return nil, badRequest("%v", err)
+		}
+		return SeedResult{Applied: n}, nil
+	})
+}
+
 // StartRemoteSetup starts the PIN-protected phone settings page and returns
 // {"url","pin","expiresInSeconds"}. host is the TV's LAN IP ("" = detect).
 func StartRemoteSetup(host string, cb RemoteCallback) (string, error) {

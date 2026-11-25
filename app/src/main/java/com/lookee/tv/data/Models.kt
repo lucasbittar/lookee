@@ -168,6 +168,9 @@ data class TitleRef(val titleId: Long = 0)
 data class PathRef(val path: String = "")
 
 @Serializable
+data class SeedResult(val applied: Int = 0)
+
+@Serializable
 data class FolderEntry(
     val name: String = "",
     val path: String = "",

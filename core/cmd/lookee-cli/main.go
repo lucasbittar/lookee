@@ -39,6 +39,7 @@ Library:
 Settings:
   settings                            show settings (keys are masked)
   settings get <key>                  print a setting (secrets masked; --reveal to show)
+  settings seed <defaults.json>       fill empty settings from a private defaults file
   settings set <key> <value>          keys: tmdb_api_key, tmdb_language, opensubtitles_api_key,
                                       subtitle_languages, opensubtitles_username, opensubtitles_password,
                                       yts_url, eztv_url, torznab_urls, stremio_addons
@@ -500,6 +501,20 @@ func (c *cli) settings(args []string) error {
 			return err
 		}
 		fmt.Println(v)
+		return nil
+	case "seed":
+		if len(args) != 2 {
+			return errors.New("usage: settings seed <defaults.json>")
+		}
+		raw, err := os.ReadFile(args[1])
+		if err != nil {
+			return err
+		}
+		n, err := c.e.SeedSettings(c.ctx, raw)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("filled %d empty setting(s)\n", n)
 		return nil
 	case "set":
 		if len(args) != 3 {

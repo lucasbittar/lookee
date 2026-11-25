@@ -137,14 +137,14 @@ lookee/
 
 **1. Run Go Core Unit Tests (Filename Parser, SQLite, Providers)**
 ```bash
-cd core && go test -v ./...
+cd core && go test -tags purego_utp,nosqlite -v ./...   # or: make test
 ```
 
 **2. Compile Go Core into Android `.aar` (arm64 + arm)**
 (Requires `go install golang.org/x/mobile/cmd/gomobile@latest` and `gomobile init`)
 ```bash
 mkdir -p app/libs
-cd core && gomobile bind -v -target=android/arm64,android/arm -androidapi 26 -o ../app/libs/lookeecore.aar .
+cd core && gomobile bind -v -tags purego_utp,nosqlite -target=android/arm64,android/arm -androidapi 26 -javapkg com.lookee.core -o ../app/libs/lookeecore.aar .
 ```
 Add `android/386` to `-target` for debug builds that run in the Android 9 TV emulator (32-bit x86). `make bind` does this; `make bind-release` is ARM-only. Prefer the `Makefile` targets (`make test`, `make lint`, `make bind`, `make apk`, `make install MIBOX_IP=…`, `make doctor`), which also set the SDK/NDK/JDK paths.
 

@@ -37,8 +37,8 @@ func (s settingsStore) Fields(ctx context.Context) ([]remote.Field, error) {
 		f(KeySubtitleLanguages, "Subtitle languages", "In order of preference, comma separated, e.g. pt-BR,en.", "Subtitles", false),
 		f(KeyOpenSubtitlesUser, "OpenSubtitles username", "Optional. Logging in raises the daily download limit.", "Subtitles", false),
 		f(KeyOpenSubtitlesPass, "OpenSubtitles password", "", "Subtitles", false),
-		f(KeyYTSURL, "YTS-compatible API", "Base URL of a YTS-style movie API, if you use one.", "Torrent sources", false),
-		f(KeyEZTVURL, "EZTV-compatible API", "Base URL of an EZTV-style TV API, if you use one.", "Torrent sources", false),
+		f(KeyYTSURL, "YTS-compatible API", "Base URL of a YTS-style movie API. Several mirrors? One per line, tried in order.", "Torrent sources", true),
+		f(KeyEZTVURL, "EZTV-compatible API", "Base URL of an EZTV-style TV API. Several mirrors? One per line, tried in order.", "Torrent sources", true),
 		f(KeyTorznabURLs, "Torznab feeds", "Jackett or Prowlarr Torznab URLs including the apikey, one per line.", "Torrent sources", true),
 		f(KeyStremioAddons, "Stremio add-ons", "Add-on manifest URLs, one per line.", "Torrent sources", true),
 	}, nil

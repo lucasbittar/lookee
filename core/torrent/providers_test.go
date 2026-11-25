@@ -128,3 +128,34 @@ func TestQualityOf(t *testing.T) {
 		}
 	}
 }
+
+type countingProvider struct {
+	name string
+	res  []Result
+	err  error
+	hits *int
+}
+
+func (f countingProvider) Name() string { return f.name }
+func (f countingProvider) Search(context.Context, Query) ([]Result, error) {
+	*f.hits++
+	return f.res, f.err
+}
+
+func TestMirrorsFallBackInOrder(t *testing.T) {
+	var a, b, c int
+	m := Mirrors{
+		countingProvider{name: "eztv", err: errors.New("down"), hits: &a},
+		countingProvider{name: "eztv", res: []Result{{InfoHash: "x"}}, hits: &b},
+		countingProvider{name: "eztv", res: []Result{{InfoHash: "y"}}, hits: &c},
+	}
+	res, err := m.Search(context.Background(), Query{})
+	if err != nil || len(res) != 1 || res[0].InfoHash != "x" || a != 1 || b != 1 || c != 0 {
+		t.Fatalf("res=%v err=%v hits=%d,%d,%d", res, err, a, b, c)
+	}
+	var d int
+	all := Mirrors{countingProvider{name: "eztv", err: errors.New("down"), hits: &d}, countingProvider{name: "eztv", err: errors.New("gone"), hits: &d}}
+	if _, err := all.Search(context.Background(), Query{}); err == nil || !strings.Contains(err.Error(), "all 2 mirrors failed") || !strings.Contains(err.Error(), "gone") {
+		t.Fatalf("all failing: %v", err)
+	}
+}

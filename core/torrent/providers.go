@@ -459,3 +459,32 @@ func abs(n int) int {
 	}
 	return n
 }
+
+// Mirrors tries the same indexer at several addresses, in order, and returns the first
+// answer that isn't an error. Sites like EZTV move domains often, so users can list a few.
+type Mirrors []Provider
+
+func (m Mirrors) Name() string {
+	if len(m) == 0 {
+		return "mirrors"
+	}
+	return m[0].Name()
+}
+
+func (m Mirrors) Search(ctx context.Context, q Query) ([]Result, error) {
+	var errs []error
+	for _, p := range m {
+		res, err := p.Search(ctx, q)
+		if err == nil {
+			return res, nil
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		errs = append(errs, err)
+	}
+	if len(errs) == 0 {
+		return nil, nil
+	}
+	return nil, fmt.Errorf("all %d mirrors failed, last: %w", len(errs), errs[len(errs)-1])
+}

@@ -18,11 +18,19 @@ var ErrNoTorrentSources = errors.New("no torrent sources configured: add one in 
 // configured by the user, so the app ships neutral and survives indexers moving domains.
 func providersFrom(s map[string]string) []torrent.Provider {
 	var ps []torrent.Provider
-	if u := strings.TrimSpace(s[KeyYTSURL]); u != "" {
-		ps = append(ps, torrent.YTS{BaseURL: u})
+	// YTS and EZTV accept several addresses, one per line: mirrors tried in order.
+	var yts, eztv torrent.Mirrors
+	for _, u := range lines(s[KeyYTSURL]) {
+		yts = append(yts, torrent.YTS{BaseURL: u})
 	}
-	if u := strings.TrimSpace(s[KeyEZTVURL]); u != "" {
-		ps = append(ps, torrent.EZTV{BaseURL: u})
+	for _, u := range lines(s[KeyEZTVURL]) {
+		eztv = append(eztv, torrent.EZTV{BaseURL: u})
+	}
+	if len(yts) > 0 {
+		ps = append(ps, yts)
+	}
+	if len(eztv) > 0 {
+		ps = append(ps, eztv)
 	}
 	for i, u := range lines(s[KeyTorznabURLs]) {
 		ps = append(ps, torrent.Torznab{Label: fmt.Sprintf("torznab%d", i+1), URL: u})

@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 
 class LookeeApp : Application() {
     /** Lives as long as the process; for work that must outlast a screen. */
@@ -29,9 +30,23 @@ class LookeeApp : Application() {
             )
         }
         core = GoCoreBridge(ready)
+        appScope.launch { seedPrivateDefaults() }
+    }
+
+    /**
+     * A private build can ship `assets/sources.local.json` (git-ignored, docs/SOURCES.md) with
+     * torrent sources preset. Go fills only empty settings, once per file. A bad file is
+     * logged by the core and never stops the app.
+     */
+    private suspend fun seedPrivateDefaults() {
+        val json = runCatching { assets.open(DEFAULTS_ASSET).bufferedReader().use { it.readText() } }
+            .getOrNull() ?: return
+        runCatching { core.seedDefaults(json) }
     }
 
     companion object {
+        private const val DEFAULTS_ASSET = "sources.local.json"
+
         fun from(context: Context): LookeeApp = context.applicationContext as LookeeApp
     }
 }

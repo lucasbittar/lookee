@@ -23,9 +23,10 @@ APK          := app/build/outputs/apk/debug/app-debug.apk
 TARGETS      ?= android/arm,android/arm64
 DEBUG_TARGETS ?= $(TARGETS),android/386
 MIBOX_IP     ?=
-# Pure-Go builds of anacrolix's optional native parts: libutp is C++ and would need
-# libc++_shared.so, which gomobile does not package; its SQLite piece store is unused.
-ANDROID_TAGS ?= purego_utp,nosqlite
+# Build tags for every Go build. purego_utp: anacrolix's default uTP is C++ (go-libutp)
+# and would need libc++_shared.so, which gomobile does not package. nosqlite: anacrolix's
+# SQLite piece store bundles a second SQLite that clashes with mattn/go-sqlite3.
+GO_TAGS ?= purego_utp,nosqlite
 
 .PHONY: all test lint cli cli-android push-cli serve-apk bind bind-release apk install devices clean doctor
 
@@ -33,15 +34,15 @@ all: test bind apk
 
 ## test: run Go unit tests
 test:
-	cd core && go test -tags $(ANDROID_TAGS) ./...
+	cd core && go test -tags $(GO_TAGS) ./...
 
 ## lint: vet and golangci-lint the Go core
 lint:
-	cd core && go vet -tags $(ANDROID_TAGS) ./... && $(GOLANGCI_LINT) run --build-tags $(ANDROID_TAGS) ./...
+	cd core && go vet -tags $(GO_TAGS) ./... && $(GOLANGCI_LINT) run --build-tags $(GO_TAGS) ./...
 
 ## cli: build the local harness to core/lookee-cli
 cli:
-	cd core && go build -o lookee-cli ./cmd/lookee-cli
+	cd core && go build -tags $(GO_TAGS) -o lookee-cli ./cmd/lookee-cli
 
 NDK_BIN := $(firstword $(wildcard $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/*/bin))
 
@@ -49,7 +50,7 @@ NDK_BIN := $(firstword $(wildcard $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/*
 cli-android:
 	cd core && CGO_ENABLED=1 GOOS=android GOARCH=arm GOARM=7 \
 		CC=$(NDK_BIN)/armv7a-linux-androideabi26-clang CXX=$(NDK_BIN)/armv7a-linux-androideabi26-clang++ \
-		go build -tags $(ANDROID_TAGS) -trimpath -ldflags="-s -w" -o lookee-cli-android ./cmd/lookee-cli
+		go build -tags $(GO_TAGS) -trimpath -ldflags="-s -w" -o lookee-cli-android ./cmd/lookee-cli
 
 ## push-cli: copy the Android CLI to /data/local/tmp on the Mi Box
 push-cli: cli-android
@@ -62,12 +63,12 @@ endif
 ## bind: build the Android library (debug: includes x86 for the emulator)
 bind:
 	@mkdir -p app/libs
-	cd core && $(GOMOBILE) bind -tags $(ANDROID_TAGS) -target=$(DEBUG_TARGETS) -androidapi 26 -javapkg com.lookee.core -o ../$(AAR) .
+	cd core && $(GOMOBILE) bind -tags $(GO_TAGS) -target=$(DEBUG_TARGETS) -androidapi 26 -javapkg com.lookee.core -o ../$(AAR) .
 
 ## bind-release: ARM-only Android library for release builds
 bind-release:
 	@mkdir -p app/libs
-	cd core && $(GOMOBILE) bind -tags $(ANDROID_TAGS) -target=$(TARGETS) -androidapi 26 -javapkg com.lookee.core -trimpath -ldflags="-s -w" -o ../$(AAR) .
+	cd core && $(GOMOBILE) bind -tags $(GO_TAGS) -target=$(TARGETS) -androidapi 26 -javapkg com.lookee.core -trimpath -ldflags="-s -w" -o ../$(AAR) .
 
 ## apk: build the debug APK (Phase 3+)
 apk: $(AAR)

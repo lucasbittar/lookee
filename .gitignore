@@ -31,3 +31,6 @@ captures/
 *.db
 *.db-wal
 *.db-shm
+
+# Private torrent-source presets for your own builds (docs/SOURCES.md). Never commit.
+app/src/main/assets/sources.local.json

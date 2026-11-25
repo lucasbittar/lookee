@@ -33,6 +33,7 @@ class BridgeContractTest {
         "titles" to ListSerializer(MediaTitle.serializer()),
         "details" to MediaDetails.serializer(),
         "title_ref" to TitleRef.serializer(),
+        "seed_result" to SeedResult.serializer(),
         "browse" to ListSerializer(FolderEntry.serializer()),
         "progress" to ListSerializer(PlaybackProgress.serializer()),
         "sidecars" to ListSerializer(SidecarSubtitle.serializer()),

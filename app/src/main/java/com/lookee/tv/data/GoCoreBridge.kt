@@ -68,6 +68,9 @@ class GoCoreBridge(
 
     suspend fun setSetting(key: String, value: String) = call { Lookeecore.setSetting(key, value) }
 
+    /** Applies a private defaults file (docs/SOURCES.md): fills empty settings only, once per file. */
+    suspend fun seedDefaults(defaultsJson: String): SeedResult = get { Lookeecore.seedDefaultSettings(defaultsJson) }
+
     /** Starts the phone setup page. [onClosed] runs on a Go thread with whether settings were saved. */
     suspend fun startRemoteSetup(host: String, onClosed: (saved: Boolean) -> Unit): RemoteSetup =
         get {

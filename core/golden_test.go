@@ -53,6 +53,7 @@ func goldenDTOs() map[string]any {
 			Files:    []engine.FileView{{File: file, PositionMS: 60_000, DurationMS: 10_200_000}},
 		},
 		"title_ref": TitleRef{TitleID: 7},
+		"seed_result": SeedResult{Applied: 2},
 		"browse": []scanner.Entry{
 			{Name: "Lesson 2", Path: "/storage/emulated/0/Download/Lessons/Lesson 2", IsDir: true, ModTime: 1700000000},
 			{Name: "solo.mp4", Path: "/storage/emulated/0/Download/Lessons/solo.mp4", Size: 1_000_000, ModTime: 1700000000, Subtitle: true},
