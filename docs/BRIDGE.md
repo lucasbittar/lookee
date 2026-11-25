@@ -44,6 +44,6 @@
 | Progress | `saveProgress(key, titleId, positionMs, durationMs)`, `getContinueWatching(limit)` |
 | Subtitles | `findSidecarSubtitles(videoPath)`, `searchSubtitles(requestJson)`, `downloadSubtitle(fileId)`, `shiftSubtitle(path, offsetMs)` |
 | Discover | `getTrending(kind)`, `searchTMDB(query, kind)`, `searchTorrents(kind, tmdbId, season, episode)`, `searchTorrentsText(kind, text)` |
-| Streaming | `startStream(source, fileIndex, cb)`, `getStreamStats`, `stopStream`, `clearStreamCache` |
+| Streaming | `startStream(source, fileIndex, cb)`, `getStreamStats`, `stopStream`, `clearStreamCache`, `playDisc(path, kind)`, `stopDisc()` |
 
 `externalDir` is `Context.getExternalFilesDir(null)`. On the Mi Box that directory is on the 1 TB drive, so torrent pieces never fill the internal flash (Decision 2).

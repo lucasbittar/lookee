@@ -231,11 +231,12 @@ Implementation notes (2026-11-24):
 - [ ] Hot-reload: rebuild the `MediaItem` with the new `SubtitleConfiguration` and re-prepare at the current position.
 - [ ] Subtitle size control and sync offset (−5.0 s to +5.0 s, 100 ms steps) through `ShiftSubtitle`.
 - [x] Leaving the player always calls `StopStream`, including on process death recovery at next launch (the core sweeps the stream cache at start).
-- [ ] Disc rips (Decision 13):
-  - `dvd`: play the main title set (the `VTS_xx` group with the largest total `.VOB` size) as one continuous stream, served by the Go core from the loopback server if Media3 cannot play a concatenated VOB playlist directly.
-  - `bluray`: play the largest `.m2ts`, or the main `.mpls` playlist's clips in order.
-  - `iso`: the Go core reads the ISO 9660/UDF image and serves the main title over the loopback server.
-  - First, a spike on the box: does Media3 play a `.VOB` and an `.m2ts` from your library, with sound? The result decides how much of the above the Go core must do.
+- [x] Disc rips (Decision 13), in the core's `disc` package and served through `loopback` (shared with torrent streams):
+  - `dvd`: the main title set (the `VTS_xx` group with the largest total `.VOB` size, menus excluded), its VOBs joined into one MPEG-PS stream. Seeking works across parts.
+  - `bluray`: the longest `.mpls` playlist whose clips are all present, falling back to the largest `.m2ts`. The core converts `.m2ts` (192-byte packets) to plain TS on the fly, because Media3's TS extractor expects 188-byte packets.
+  - `iso`: the core reads the ISO 9660 file table and serves the DVD's main title straight from the image. Blu-ray images are UDF-only and show "Blu-ray disc images can't play yet" (open: a UDF 2.5 reader).
+  - Checked on the emulator with rips made from *Sintel*: the Blu-ray rip plays and seeks. The DVD folder and the ISO are parsed and served, but the emulator has no MPEG-2/AC3 decoders, while the Mi Box lists both (`OMX.amlogic.mpeg2`, `.ac3`). The box run is pending.
+- [x] **Fixed: scans could fail with "disk I/O error: read-only file system".** SQLite writes temp files (big deletes, sorts) to the current directory when no temp dir is set, and an app's is `/`. The core now sets `SQLITE_TMPDIR` to its cache. Pruning ~70 titles at once triggered it. Every scan now logs "scan finished"/"scan failed".
 
 **Implementation notes**
 

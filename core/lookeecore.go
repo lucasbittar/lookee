@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/lucasbittar/lookee/core/db"
+	"github.com/lucasbittar/lookee/core/disc"
 	"github.com/lucasbittar/lookee/core/engine"
 	"github.com/lucasbittar/lookee/core/metadata"
 	"github.com/lucasbittar/lookee/core/remote"
@@ -45,6 +46,7 @@ const (
 	CodeNoLAN          = "no_lan"
 	CodeCancelled      = "cancelled"
 	CodeBadRequest     = "bad_request"
+	CodeUnsupported    = "unsupported_disc"
 )
 
 // networkTimeout bounds calls that reach TMDB, OpenSubtitles or indexers.
@@ -121,6 +123,23 @@ func Shutdown() error {
 
 // CoreVersion returns the library version.
 func CoreVersion() string { return Version }
+
+// PlayDisc serves the main title of a disc rip (a DVD or Blu-ray folder, or an ISO) on the
+// loopback server. kind is the file's kind ("dvd", "bluray", "iso"; "" guesses). JSON:
+// {url, kind, parts, size, seconds}. Errors with lookee:unsupported_disc: when it can't play.
+func PlayDisc(path, kind string) (string, error) {
+	return call(func(ctx context.Context, e *engine.Engine) (any, error) { return e.PlayDisc(ctx, path, kind) })
+}
+
+// StopDisc stops serving the current disc rip.
+func StopDisc() error {
+	e, err := get()
+	if err != nil {
+		return err
+	}
+	e.StopDisc()
+	return nil
+}
 
 // LogEvent writes an app-side event to the diagnostics log, so problems seen only in the
 // Kotlin shell (a file that won't play, a track the box can't decode) can be read from the
@@ -617,6 +636,8 @@ func classify(err error) (string, string) {
 		return CodeNoVideo, err.Error()
 	case errors.Is(err, remote.ErrNoLAN):
 		return CodeNoLAN, err.Error()
+	case errors.Is(err, disc.ErrUnsupported):
+		return CodeUnsupported, err.Error()
 	case errors.Is(err, context.Canceled):
 		return CodeCancelled, "cancelled"
 	case errors.As(err, &br):

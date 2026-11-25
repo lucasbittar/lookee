@@ -234,7 +234,6 @@ private fun FilmBody(d: MediaDetails, vm: DetailsViewModel) {
             val play = { from: Long ->
                 when {
                     file == null -> nav.toast("This title has no file on the drive.")
-                    file.kind != "file" -> nav.toast("Disc rips play in a coming build.")
                     else -> nav.push(
                         Route.Player(
                             PlayItem(
@@ -243,6 +242,7 @@ private fun FilmBody(d: MediaDetails, vm: DetailsViewModel) {
                                 subtitle = listOfNotNull(d.year.takeIf { it > 0 }?.toString(), d.genres.firstOrNull()).joinToString(" · "),
                                 titleId = d.id,
                                 startMs = from,
+                                disc = file.kind.takeIf { it != "file" },
                             ),
                         ),
                     )

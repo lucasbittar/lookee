@@ -13,10 +13,29 @@ data class PlayItem(
     val startMs: Long = 0,
     /** A torrent stream: the player owns it and stops it (deleting its pieces) when it closes. */
     val stream: Boolean = false,
+    /**
+     * A disc rip ("dvd", "bluray", "iso"; "" lets the core tell): the core serves its main
+     * title and the player plays that, while progress stays keyed to [path].
+     */
+    val disc: String? = null,
     /** Played when this one ends, or from the "Next" button. */
     val next: PlayItem? = null,
 ) {
-    val source: String get() = if (stream) "Streaming" else "On your drive"
+    val source: String
+        get() = when {
+            stream -> "Streaming"
+            disc == "dvd" -> "DVD rip"
+            disc == "bluray" -> "Blu-ray rip"
+            disc == "iso" -> "Disc image"
+            else -> "On your drive"
+        }
+}
+
+/** The disc kind for a saved path (Continue Watching): folders and images are disc rips. */
+fun discKindOf(path: String): String? = when {
+    path.endsWith(".iso", ignoreCase = true) -> "iso"
+    java.io.File(path).isDirectory -> ""
+    else -> null
 }
 
 /** Builds a chain where each item's [PlayItem.next] is the following one. */

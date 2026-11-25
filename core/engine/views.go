@@ -17,29 +17,29 @@ const watchedFraction = 0.95
 
 // ContinueItem is one card in Continue Watching: what to resume and how to show it.
 type ContinueItem struct {
-	Key         string `json:"key"` // file path or stream key; pass back to the player
-	TitleID     int64  `json:"titleId,omitempty"`
-	Title       string `json:"title"`
-	Category    string `json:"category,omitempty"`
-	Kind        string `json:"kind,omitempty"`
-	Year        int    `json:"year,omitempty"`
-	Overview    string `json:"overview,omitempty"`
+	Key         string   `json:"key"` // file path or stream key; pass back to the player
+	TitleID     int64    `json:"titleId,omitempty"`
+	Title       string   `json:"title"`
+	Category    string   `json:"category,omitempty"`
+	Kind        string   `json:"kind,omitempty"`
+	Year        int      `json:"year,omitempty"`
+	Overview    string   `json:"overview,omitempty"`
 	Genres      []string `json:"genres,omitempty"`
-	PosterURL   string `json:"posterUrl,omitempty"`
-	BackdropURL string `json:"backdropUrl,omitempty"`
-	Season      int    `json:"season,omitempty"`
-	Episode     int    `json:"episode,omitempty"`
-	EpisodeName string `json:"episodeName,omitempty"`
-	StillURL    string `json:"stillUrl,omitempty"` // episode still, else the backdrop
-	PositionMS  int64  `json:"positionMs"`
-	DurationMS  int64  `json:"durationMs"`
+	PosterURL   string   `json:"posterUrl,omitempty"`
+	BackdropURL string   `json:"backdropUrl,omitempty"`
+	Season      int      `json:"season,omitempty"`
+	Episode     int      `json:"episode,omitempty"`
+	EpisodeName string   `json:"episodeName,omitempty"`
+	StillURL    string   `json:"stillUrl,omitempty"` // episode still, else the backdrop
+	PositionMS  int64    `json:"positionMs"`
+	DurationMS  int64    `json:"durationMs"`
 }
 
 // HomeView is everything the Home screen shows, in one call.
 type HomeView struct {
-	ContinueWatching []ContinueItem  `json:"continueWatching"`
-	RecentlyAdded    []db.Title      `json:"recentlyAdded"`
-	Counts           map[string]int  `json:"counts"` // titles per category
+	ContinueWatching []ContinueItem `json:"continueWatching"`
+	RecentlyAdded    []db.Title     `json:"recentlyAdded"`
+	Counts           map[string]int `json:"counts"` // titles per category
 }
 
 // Home builds the Home screen: unfinished items (newest first) and recent additions.

@@ -14,9 +14,11 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/lucasbittar/lookee/core/db"
 	"github.com/lucasbittar/lookee/core/logs"
+	"github.com/lucasbittar/lookee/core/loopback"
 	"github.com/lucasbittar/lookee/core/metadata"
 	"github.com/lucasbittar/lookee/core/remote"
 	"github.com/lucasbittar/lookee/core/scanner"
@@ -81,6 +83,9 @@ type Engine struct {
 
 	remoteMu sync.Mutex
 	remote   *remote.Server
+
+	discMu sync.Mutex
+	disc   *loopback.Server
 }
 
 // Open opens the database and prepares the cache directory.
@@ -95,6 +100,15 @@ func Open(opts Options) (*Engine, error) {
 	}
 	if opts.LogDir == "" {
 		opts.LogDir = filepath.Join(filepath.Dir(opts.DBPath), "logs")
+	}
+	// SQLite puts temp files (large sorts, statement journals) in the current directory when no
+	// temp dir is set, and an Android app's current directory is "/", which is read-only: scans
+	// then failed with "disk I/O error: read-only file system". Point it at our cache.
+	if opts.CacheDir != "" {
+		tmp := filepath.Join(opts.CacheDir, "sqlite-tmp")
+		if err := os.MkdirAll(tmp, 0o755); err == nil {
+			_ = os.Setenv("SQLITE_TMPDIR", tmp)
+		}
 	}
 	store, err := db.Open(opts.DBPath)
 	if err != nil {
@@ -127,6 +141,7 @@ func cacheDirOrTemp(dir string) string {
 // Close stops any stream or setup page and releases the database.
 func (e *Engine) Close() error {
 	e.StopStream()
+	e.StopDisc()
 	e.StopRemoteSetup()
 	err := e.store.Close()
 	if e.logFile != nil {
@@ -266,18 +281,27 @@ type ScanReport struct {
 // Scan syncs every indexed root, then matches new titles against TMDB.
 // Matching problems (no key, offline) are reported in the result rather than as an error,
 // because the local index is still valid and usable.
-func (e *Engine) Scan(ctx context.Context, onEvent func(ScanEvent)) (ScanReport, error) {
+func (e *Engine) Scan(ctx context.Context, onEvent func(ScanEvent)) (rep ScanReport, err error) {
 	if !e.scanning.CompareAndSwap(false, true) {
 		return ScanReport{}, ErrScanRunning
 	}
 	defer e.scanning.Store(false)
+	// Every scan leaves a line in the log: a failed one was invisible without ADB.
+	start := time.Now()
+	defer func() {
+		switch {
+		case err == nil:
+			e.log.Info("scan finished", "roots", len(rep.Roots), "matched", rep.Matched, "unmatched", rep.Unmatched, "took", time.Since(start).Round(time.Millisecond))
+		case !errors.Is(err, context.Canceled):
+			e.log.Warn("scan failed", "err", err)
+		}
+	}()
 	emit := func(ev ScanEvent) {
 		if onEvent != nil {
 			onEvent(ev)
 		}
 	}
 
-	var rep ScanReport
 	roots, err := e.store.Roots(ctx)
 	if err != nil {
 		return rep, err

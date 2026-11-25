@@ -85,8 +85,8 @@ type Title struct {
 	// PreviewPath is a video file to grab a preview frame from, set by the engine when
 	// the title has no poster (unmatched titles, personal videos). Not stored.
 	PreviewPath string `json:"previewPath,omitempty"`
-	AddedAt     int64       `json:"addedAt"`
-	UpdatedAt   int64       `json:"updatedAt"`
+	AddedAt     int64  `json:"addedAt"`
+	UpdatedAt   int64  `json:"updatedAt"`
 }
 
 // CastMember is one of the top billed actors of a title.

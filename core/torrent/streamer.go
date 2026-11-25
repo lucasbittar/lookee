@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/lucasbittar/lookee/core/loopback"
 	"io"
 	"log/slog"
 	"net/netip"
@@ -72,7 +73,7 @@ type Session struct {
 	client *atorrent.Client
 	tor    *atorrent.Torrent
 	file   *atorrent.File
-	server *streamServer
+	server *loopback.Server
 	start  time.Time
 
 	mu        sync.Mutex
@@ -181,7 +182,7 @@ func Start(ctx context.Context, cfg Config, source string, fileIndex int, onStat
 	s.tor.DownloadPieces(begin, min(begin+edgePieces, end))
 	s.tor.DownloadPieces(max(end-edgePieces, begin), end)
 
-	s.server, err = listenStream(cfg.ListenAddr, filepath.Base(s.file.Path()), s.open)
+	s.server, err = loopback.Listen(cfg.ListenAddr, filepath.Base(s.file.Path()), s.open)
 	if err != nil {
 		return fail(fmt.Errorf("start stream server: %w", err))
 	}

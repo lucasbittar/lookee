@@ -25,7 +25,9 @@ func TestHomeAndSeriesViews(t *testing.T) {
 	e := openEngine(t)
 	lib := t.TempDir()
 	shows, movies, lessons := filepath.Join(lib, "TV Shows"), filepath.Join(lib, "Movies"), filepath.Join(lib, "Lessons")
-	ep := func(n string) string { return filepath.Join(shows, "Doctor Who", "Season 1", "Doctor.Who.S01E0"+n+".mkv") }
+	ep := func(n string) string {
+		return filepath.Join(shows, "Doctor Who", "Season 1", "Doctor.Who.S01E0"+n+".mkv")
+	}
 	for _, n := range []string{"1", "2", "3"} {
 		mkfile(t, ep(n))
 	}

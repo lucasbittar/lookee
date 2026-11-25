@@ -31,7 +31,7 @@ func Search(ctx context.Context, root, query string, limit int) ([]Hit, error) {
 		return []Hit{}, nil
 	}
 	type scored struct {
-		hit   Hit
+		hit    Hit
 		byName bool
 	}
 	var found []scored

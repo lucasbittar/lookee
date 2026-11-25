@@ -1,5 +1,6 @@
 package com.lookee.tv.ui.home
 
+import com.lookee.tv.ui.player.discKindOf
 import com.lookee.tv.ui.player.PlayItem
 import androidx.compose.animation.Crossfade
 import com.lookee.tv.ui.navigation.LocalNavInset
@@ -203,6 +204,7 @@ fun HomeScreen() {
                                                             subtitle = if (item.episode > 0) "${item.title} · Season ${item.season} · Episode ${item.episode}" else "",
                                                             titleId = item.titleId,
                                                             startMs = item.positionMs,
+                                                            disc = discKindOf(item.key),
                                                         ),
                                                     ),
                                                 )

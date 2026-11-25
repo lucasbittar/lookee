@@ -37,6 +37,7 @@ object Codes {
     const val NO_LAN = "no_lan"
     const val CANCELLED = "cancelled"
     const val BAD_REQUEST = "bad_request"
+    const val UNSUPPORTED_DISC = "unsupported_disc"
 }
 
 /**
@@ -139,6 +140,13 @@ class GoCoreBridge(
         get { Lookeecore.searchAndRebindTMDB(titleId, query) }
 
     suspend fun browse(path: String): List<FolderEntry> = get { Lookeecore.browseFolder(path) }
+
+    /** Serves a disc rip's main title on the loopback server (Decision 13). */
+    suspend fun playDisc(path: String, kind: String): DiscPlay = get { Lookeecore.playDisc(path, kind) }
+
+    suspend fun stopDisc() {
+        runCatching { call { Lookeecore.stopDisc() } }
+    }
 
     suspend fun searchLessons(query: String): List<LessonHit> = get { Lookeecore.searchLessons(query) }
 

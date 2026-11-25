@@ -1,5 +1,7 @@
 package com.lookee.tv.ui.player
 
+import com.lookee.tv.data.Codes
+import com.lookee.tv.data.LookeeException
 import android.graphics.Color as AndroidColor
 import android.net.Uri
 import androidx.annotation.OptIn
@@ -164,9 +166,22 @@ fun PlayerScreen(item: PlayItem) {
     // Load the current item: sidecar subtitles go in with it, preferred subtitle language first.
     LaunchedEffect(current) {
         ui = Ui()
-        val sidecars = if (current.stream) emptyList() else runCatching { app.core.sidecarSubtitles(current.path) }.getOrDefault(emptyList())
+        val disc = current.disc
+        val sidecars = if (current.stream || disc != null) emptyList() else runCatching { app.core.sidecarSubtitles(current.path) }.getOrDefault(emptyList())
         val preferred = runCatching { app.core.settings().subtitleLanguages }.getOrDefault("").split(',').map { it.trim() }.filter { it.isNotEmpty() }
-        val uri = if (current.path.startsWith("http")) Uri.parse(current.path) else Uri.fromFile(File(current.path))
+        // A disc rip plays through the core, which joins its main title into one stream.
+        val discUrl = if (disc == null) null else try {
+            app.core.playDisc(current.path, disc).url
+        } catch (e: LookeeException) {
+            ui = ui.copy(error = discProblem(e), buffering = false)
+            app.core.logEvent("disc ${File(current.path).name}: ${e.message}", warn = true)
+            return@LaunchedEffect
+        }
+        val uri = when {
+            discUrl != null -> Uri.parse(discUrl)
+            current.path.startsWith("http") -> Uri.parse(current.path)
+            else -> Uri.fromFile(File(current.path))
+        }
         val media = MediaItem.Builder()
             .setUri(uri)
             .setSubtitleConfigurations(
@@ -250,6 +265,7 @@ fun PlayerScreen(item: PlayItem) {
             player.release()
             app.library.changed() // Continue Watching and progress bars catch up
             if (current.stream) app.appScope.launch { runCatching { app.core.stopStream() } }
+            app.appScope.launch { app.core.stopDisc() }
         }
     }
 
@@ -441,6 +457,13 @@ fun PlayerScreen(item: PlayItem) {
 private fun togglePlay(player: Player) {
     if (player.playbackState == Player.STATE_ENDED) player.seekTo(0)
     if (player.isPlaying) player.pause() else player.play()
+}
+
+/** "Blu-ray disc images can't play yet." from the core's "disc: unsupported: …". */
+private fun discProblem(e: LookeeException): String {
+    if (e.code != Codes.UNSUPPORTED_DISC) return e.message ?: "This disc couldn't be opened."
+    val reason = e.message.orEmpty().substringAfterLast("unsupported: ").trim()
+    return reason.replaceFirstChar { it.uppercase() }.let { if (it.endsWith('.')) it else "$it." }
 }
 
 /** Plain words for what went wrong; the codes go to the log. */

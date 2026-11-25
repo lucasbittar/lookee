@@ -46,7 +46,7 @@ func goldenDTOs() map[string]any {
 			Roots:   []scanner.Result{{RootID: 1, Root: "/storage/emulated/0/Download/Movies", Unavailable: true, Seen: 120, Added: 9, Updated: 1, Removed: 2}},
 			Matched: 9, Unmatched: 1, NeedsAPIKey: true, MatchError: "TMDB rejected the API key"}},
 		"scan_failed": ScanUpdate{ScanEvent: engine.ScanEvent{Phase: "failed"}, Error: "cancelled", Code: CodeCancelled},
-		"titles":      []db.Title{title, {ID: 8, Category: db.Movies, Status: db.StatusUnmatched, Name: "Marcus King - Four Of a Kind",
+		"titles": []db.Title{title, {ID: 8, Category: db.Movies, Status: db.StatusUnmatched, Name: "Marcus King - Four Of a Kind",
 			PreviewPath: "/storage/emulated/0/Download/Movies/Marcus King/marcus.mkv", AddedAt: 1764000000, UpdatedAt: 1764000000}},
 		"details": engine.TitleDetails{Title: title, Section: "movies",
 			Cast:     []db.CastMember{{Order: 0, Name: "Al Pacino", Character: "Vincent Hanna", ProfileURL: "https://image.tmdb.org/t/p/w185/pacino.jpg"}},
@@ -74,6 +74,7 @@ func goldenDTOs() map[string]any {
 			{Entry: scanner.Entry{Name: "solo.mp4", Path: "/storage/emulated/0/Download/Lessons/solo.mp4", Size: 1_000_000, ModTime: 1700000000, Subtitle: true},
 				PositionMS: 30_000, DurationMS: 600_000},
 		},
+		"disc_play": engine.DiscPlay{URL: "http://127.0.0.1:41234/stream", Kind: "bluray", Parts: 2, Size: 31_000_000_000, Seconds: 7260},
 		"lesson_hits": []engine.LessonHit{
 			{Hit: scanner.Hit{Entry: scanner.Entry{Name: "Lesson 03.mp4", Path: "/storage/emulated/0/Download/Lessons/Solo/Lesson 03.mp4",
 				Size: 1_000_000, ModTime: 1700000000, Subtitle: true}, Folder: "Solo"}, PositionMS: 30_000, DurationMS: 600_000},

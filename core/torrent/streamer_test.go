@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"github.com/lucasbittar/lookee/core/loopback"
 	"io"
 	"log/slog"
 	"net/http"
@@ -26,7 +27,7 @@ func (nopCloser) Close() error { return nil }
 func TestStreamServerRanges(t *testing.T) {
 	data := make([]byte, 1<<20)
 	rand.Read(data)
-	srv, err := listenStream("127.0.0.1:0", "movie.mkv", func(context.Context) (io.ReadSeekCloser, error) {
+	srv, err := loopback.Listen("127.0.0.1:0", "movie.mkv", func(context.Context) (io.ReadSeekCloser, error) {
 		return nopCloser{bytes.NewReader(data)}, nil
 	})
 	if err != nil {

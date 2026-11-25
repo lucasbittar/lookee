@@ -175,6 +175,16 @@ data class PathRef(val path: String = "")
 @Serializable
 data class SeedResult(val applied: Int = 0)
 
+/** A disc rip being served by the core: play [url]. */
+@Serializable
+data class DiscPlay(
+    val url: String = "",
+    val kind: String = "",
+    val parts: Int = 0,
+    val size: Long = 0,
+    val seconds: Double = 0.0,
+)
+
 /** One Continue Watching card. [key] is the file path (or stream key) to resume. */
 @Serializable
 data class ContinueItem(
