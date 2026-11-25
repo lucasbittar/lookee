@@ -1,0 +1,32 @@
+# Go
+core/build/
+core/lookee-cli
+*.test
+*.out
+
+# gomobile output
+app/libs/*.aar
+app/libs/*-sources.jar
+
+# Android / Gradle
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+captures/
+.cxx/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Secrets and local data
+.env
+*.db
+*.db-wal
+*.db-shm

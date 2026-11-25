@@ -1,0 +1,23 @@
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      # Calls whose error carries nothing actionable: rollback after a failure,
+      # closing read-only rows, closing a body that was already fully read.
+      exclude-functions:
+        - (*database/sql.Tx).Rollback
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+        - (io.Closer).Close
+        # CLI terminal output, and flag sets created with ExitOnError (they exit, never return an error).
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - (*text/tabwriter.Writer).Flush
+        - (*flag.FlagSet).Parse
+  exclusions:
+    rules:
+      # Test fixtures ignore errors from helpers and fake servers on purpose.
+      - path: _test\.go
+        linters: [errcheck]
