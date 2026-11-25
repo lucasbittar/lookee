@@ -10,7 +10,7 @@ Each phase ends with **exit criteria** that can be checked with a command or on 
 |---|---|---|---|
 | 0 | Toolchain & repo scaffolding | macOS | ✅ |
 | 1 | Go core foundation & CLI harness | macOS | ✅ |
-| 2 | Torrent streamer & subtitle client | macOS | 🟨 |
+| 2 | Torrent streamer & subtitle client | macOS | ✅ |
 | 3 | gomobile binding & Android TV shell | macOS + emulator | ⬜ |
 | 4 | TV screens & USB storage | emulator + Mi Box | ⬜ |
 | 5 | Player & subtitle hot-reload | Mi Box | ⬜ |
@@ -125,7 +125,7 @@ Implementation notes (2026-11-24):
 - ✅ *Sintel* (Blender, CC-BY) from the live swarm: ready within seconds at 15–18 MB/s; a mid-file range request returned 206 with the right length. (Played via `--consume`; open the printed URL in VLC to watch.)
 - ✅ After stopping, the session directory (139 MB during the test) no longer exists.
 - ✅ The streamer, cross-compiled for the MIBOX3 and run over `adb shell`, streams a test torrent with resident memory staying under 150 MB. *Sintel* (123 MB) was ready after ~5 s, downloaded in full within 90 s from up to 18 peers, peaked at **48.5 MB RSS**, and left the cache directory empty. The test binary must be built as `GOOS=android` with cgo (NDK clang, plus the NDK's `libc++_shared.so` beside it): a static `linux/arm` build uses Go's own DNS resolver, which reads `/etc/resolv.conf`, absent on Android, so every tracker and DHT lookup failed. The app's `.aar` is built as `android` and uses the system resolver. `make push-cli MIBOX_IP=…` builds and copies both files.
-- ⬜ `lookee-cli remote` prints a URL and PIN; saving a key from a phone on the same Wi-Fi shows up in `lookee-cli settings get`, and a wrong PIN is rejected.
+- ✅ `lookee-cli remote` prints a URL and PIN; saving a key from a phone on the same Wi-Fi shows up in `lookee-cli settings get`, and a wrong PIN is rejected. Saved from the user's phone (5 fields, page closed after saving); a live run returned 401 for wrong PINs, 303 for the right one, 403 at the fifth wrong attempt, and then the server shut down.
 - ✅ `gomobile bind` succeeds for arm, arm64 and x86 with the torrent library (after the `anet` replacement). Unstripped `libgojni.so` is ~45 MB per ABI; measure the release APK in Phase 6.
 
 ---
