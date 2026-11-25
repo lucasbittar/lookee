@@ -105,7 +105,7 @@ fun LookeeRoot() {
 
     // Library folders are read by path, which needs the storage permission (Decision 1).
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) app.library.scanOnLaunch()
+        if (granted) app.library.autoScan(force = true)
     }
     LaunchedEffect(Unit) {
         requesters.getValue(Destination.Home).requestFocus()
@@ -113,7 +113,7 @@ fun LookeeRoot() {
             PackageManager.PERMISSION_GRANTED
         val hasFolders = runCatching { app.core.roots().isNotEmpty() }.getOrDefault(false)
         when {
-            granted -> app.library.scanOnLaunch()
+            granted -> {} // MainActivity.onStart syncs
             hasFolders -> permission.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
     }

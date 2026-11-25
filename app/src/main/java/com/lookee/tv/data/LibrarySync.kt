@@ -1,5 +1,7 @@
 package com.lookee.tv.data
 
+import android.os.SystemClock
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,12 +25,34 @@ class LibrarySync(private val core: GoCoreBridge, private val scope: CoroutineSc
     val version: StateFlow<Int> = _version.asStateFlow()
 
     private var job: Job? = null
-    private var startedOnce = false
+    private var lastAuto = 0L
 
     val running: Boolean get() = job?.isActive == true
 
-    fun scanNow() {
+    /** Whether the current (or last) scan was started by the app rather than by the user. */
+    @Volatile
+    var automatic: Boolean = false
+        private set
+
+    /** A scan the user asked for (Scan now, a folder added). */
+    fun scanNow() = start(automatic = false)
+
+    /**
+     * A scan the app starts on its own: when it comes to the front, and when a drive is
+     * plugged in or removed ([force]). Coming back within a minute doesn't rescan.
+     * Scans are incremental, so one with nothing new only walks the folders.
+     */
+    fun autoScan(force: Boolean = false) {
+        val now = SystemClock.elapsedRealtime()
+        if (!force && lastAuto != 0L && now - lastAuto < AUTO_COOLDOWN_MS) return
+        lastAuto = now
+        start(automatic = true)
+    }
+
+    private fun start(automatic: Boolean) {
         if (running) return
+        Log.i("lookee.sync", if (automatic) "automatic sync" else "sync requested")
+        this.automatic = automatic
         job = scope.launch {
             runCatching {
                 core.scan().collect { update ->
@@ -39,14 +63,11 @@ class LibrarySync(private val core: GoCoreBridge, private val scope: CoroutineSc
         }
     }
 
-    /** The startup scan: once per process. */
-    fun scanOnLaunch() {
-        if (startedOnce) return
-        startedOnce = true
-        scanNow()
-    }
-
     fun changed() {
         _version.value++
+    }
+
+    private companion object {
+        const val AUTO_COOLDOWN_MS = 60_000L
     }
 }
