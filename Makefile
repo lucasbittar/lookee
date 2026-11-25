@@ -24,7 +24,7 @@ TARGETS      ?= android/arm,android/arm64
 DEBUG_TARGETS ?= $(TARGETS),android/386
 MIBOX_IP     ?=
 
-.PHONY: all test lint cli bind bind-release apk install devices clean doctor
+.PHONY: all test lint cli cli-android push-cli bind bind-release apk install devices clean doctor
 
 all: test bind apk
 
@@ -36,9 +36,27 @@ test:
 lint:
 	cd core && go vet ./... && $(GOLANGCI_LINT) run ./...
 
-## cli: build the local harness to core/lookee-cli
+## cli: build the local harness to core/lookee-cli core/lookee-cli-android
 cli:
 	cd core && go build -o lookee-cli ./cmd/lookee-cli
+
+NDK_BIN := $(firstword $(wildcard $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/*/bin))
+NDK_CXX_LIB := $(firstword $(wildcard $(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/*/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so))
+
+## cli-android: build lookee-cli for the Mi Box (android/arm with cgo, so it uses Android's DNS resolver)
+cli-android:
+	cd core && CGO_ENABLED=1 GOOS=android GOARCH=arm GOARM=7 \
+		CC=$(NDK_BIN)/armv7a-linux-androideabi26-clang CXX=$(NDK_BIN)/armv7a-linux-androideabi26-clang++ \
+		go build -trimpath -ldflags="-s -w" -o lookee-cli-android ./cmd/lookee-cli
+
+## push-cli: copy the Android CLI to /data/local/tmp on the Mi Box (run with LD_LIBRARY_PATH=/data/local/tmp)
+push-cli: cli-android
+ifneq ($(MIBOX_IP),)
+	$(ADB) connect $(MIBOX_IP):5555
+endif
+	$(ADB) push core/lookee-cli-android /data/local/tmp/lookee-cli
+	$(ADB) push $(NDK_CXX_LIB) /data/local/tmp/libc++_shared.so
+	$(ADB) shell chmod 755 /data/local/tmp/lookee-cli
 
 ## bind: build the Android library (debug: includes x86 for the emulator)
 bind:
@@ -80,4 +98,4 @@ doctor:
 	@$(ADB) version | head -1
 
 clean:
-	rm -rf app/libs/*.aar app/libs/*.jar core/lookee-cli
+	rm -rf app/libs/*.aar app/libs/*.jar core/lookee-cli core/lookee-cli-android

@@ -99,27 +99,34 @@ The `Makefile` sets `ANDROID_HOME`, `ANDROID_NDK_HOME` and `JAVA_HOME` itself an
 
 **Tasks**
 
-- [ ] `torrent/providers.go`: `TorrentProvider` interface, YTS and EZTV clients, and a generic Torznab client. All base URLs are settings, not constants, because these services move domains. Results merged and sorted by seeders, then quality.
-- [ ] `torrent/streamer.go`:
+- [x] `torrent/providers.go`: `TorrentProvider` interface, YTS and EZTV clients, and a generic Torznab client. All base URLs are settings, not constants, because these services move domains. Results merged and sorted by seeders, then quality.
+- [x] `torrent/streamer.go`:
   - One on-demand `anacrolix/torrent` client, file-based storage (no mmap), conservative connection limits for a 2 GB RAM box.
   - Pick the largest video file; prioritise first and last pieces; 25 MB read-ahead.
   - `http.ServeContent` over `file.NewReader()` on a random loopback port.
   - Stats callback every second: speed, peers, buffered %, "ready to play" flag.
   - `StopStream` closes the client and `os.RemoveAll`s the piece directory. A startup sweep removes any directory left by a crash.
-- [ ] `subtitles/opensubtitles.go`: search by moviehash, TMDB id or text; language filter; download to `cacheDir`; optional login for the higher download quota.
-- [ ] Subtitle offset: `ShiftSubtitle(path, offsetMs)` writes a shifted copy of the `.srt`. This keeps sync logic in Go and gives the player a plain file to reload (see Decision 4).
-- [ ] `remote/`: phone settings page (see Decision 7). A small HTTP server in the Go core, bound to the LAN address, serving one embedded HTML form for API keys, subtitle languages and indexer URLs. It runs only while explicitly started, requires a 6-digit PIN that the TV displays, and shuts itself down after 10 minutes or on first successful save. Keys are never sent back to the browser; saved fields show as "set".
-- [ ] `logs/`: rolling log file (size-capped, e.g. 2 × 1 MB) in the app's files directory; the phone page shows it behind the same PIN (Decision 12).
-- [ ] CLI: `torrents search <query>`, `stream <magnet>`, `subs search|download|shift`, `remote serve`.
+- [x] `subtitles/opensubtitles.go`: search by moviehash, TMDB id or text; language filter; download to `cacheDir`; optional login for the higher download quota.
+- [x] Subtitle offset: `ShiftSubtitle(path, offsetMs)` writes a shifted copy of the `.srt`. This keeps sync logic in Go and gives the player a plain file to reload (see Decision 4).
+- [x] `remote/`: phone settings page (see Decision 7). A small HTTP server in the Go core, bound to the LAN address, serving one embedded HTML form for API keys, subtitle languages and indexer URLs. It runs only while explicitly started, requires a 6-digit PIN that the TV displays, and shuts itself down after 10 minutes or on first successful save. Keys are never sent back to the browser; saved fields show as "set".
+- [x] `logs/`: rolling log file (size-capped, e.g. 2 × 1 MB) in the app's files directory; the phone page shows it behind the same PIN (Decision 12).
+- [x] CLI: `torrents`, `stream [--consume --seconds]`, `subs sidecars|search|download|shift`, `remote`, `logs`.
+
+Implementation notes (2026-11-24):
+
+- Streamer: mmap storage disabled (a 32-bit process cannot map multi-GB files); in-memory piece completion; per-session `stream-*` directory deleted on stop and swept at startup; only what is watched plus a 25 MB readahead is downloaded (the library drive had ~20 GB free), with the first and last pieces fetched first.
+- Providers: no indexer URLs are built in; YTS/EZTV/Torznab/Stremio endpoints are settings.
+- Subtitles are always handed to the player as UTF-8 copies (many pt-BR `.srt` files are Windows-1252); originals are never modified.
+- `pion/webrtc` (pulled in by anacrolix for WebTorrent) depends on `wlynxg/anet`, whose `go:linkname` into `net.zoneCache` breaks Android linking. `core/third_party/anet` replaces it with plain `net` calls (only WebRTC peer discovery uses it).
 
 **Exit criteria**
 
-- `go test ./...` passes, including a range-request test of the stream server against a fake `io.ReadSeeker`.
-- A legal, well-seeded torrent (for example a Blender open movie) starts playing in VLC from the loopback URL within about 30 seconds, and seeking to the middle works.
-- After `Ctrl-C`, the piece cache directory no longer exists.
-- The streamer, cross-compiled for `linux/arm` and run on the MIBOX3 over `adb shell`, streams a test torrent with resident memory staying under 150 MB.
-- `lookee-cli remote serve` prints a URL and PIN; saving a key from a phone on the same Wi-Fi shows up in `lookee-cli settings get`, and a wrong PIN is rejected.
-- `gomobile bind` for both ARM targets still succeeds with the torrent library linked in.
+- ✅ `go test ./...` passes, including range requests against a fake reader and an offline end-to-end test (seed a generated torrent on loopback, stream it through `Start`, seek, verify bytes, verify cleanup).
+- ✅ *Sintel* (Blender, CC-BY) from the live swarm: ready within seconds at 15–18 MB/s; a mid-file range request returned 206 with the right length. (Played via `--consume`; open the printed URL in VLC to watch.)
+- ✅ After stopping, the session directory (139 MB during the test) no longer exists.
+- ✅ The streamer, cross-compiled for the MIBOX3 and run over `adb shell`, streams a test torrent with resident memory staying under 150 MB. *Sintel* (123 MB) was ready after ~5 s, downloaded in full within 90 s from up to 18 peers, peaked at **48.5 MB RSS**, and left the cache directory empty. The test binary must be built as `GOOS=android` with cgo (NDK clang, plus the NDK's `libc++_shared.so` beside it): a static `linux/arm` build uses Go's own DNS resolver, which reads `/etc/resolv.conf`, absent on Android, so every tracker and DHT lookup failed. The app's `.aar` is built as `android` and uses the system resolver. `make push-cli MIBOX_IP=…` builds and copies both files.
+- ⬜ `lookee-cli remote` prints a URL and PIN; saving a key from a phone on the same Wi-Fi shows up in `lookee-cli settings get`, and a wrong PIN is rejected.
+- ✅ `gomobile bind` succeeds for arm, arm64 and x86 with the torrent library (after the `anet` replacement). Unstripped `libgojni.so` is ~45 MB per ABI; measure the release APK in Phase 6.
 
 ---
 
@@ -260,7 +267,7 @@ These are places where the plan departs from, or tightens, `CLAUDE.md`. Each lis
 
 ## Risks
 
-1. **`anacrolix/torrent` on 32-bit Android.** ~~SQLite~~ retired: the core's test suites pass on the MIBOX3. The box is confirmed 32-bit only, so `armeabi-v7a` is likely the ABI that matters, and it is the less-travelled path for both libraries. Mitigation: `gomobile bind` for both ARM targets is an exit criterion from Phase 1 onward, and Phase 3 runs it on the real box before any UI is built. Fallback for SQLite: `mattn/go-sqlite3` with CGO through the NDK.
+1. **`anacrolix/torrent` on 32-bit Android.** ~~SQLite~~ retired: the core's test suites pass on the MIBOX3. Streaming retired for the CLI build: a real torrent streamed on the box at 48.5 MB peak RSS (Phase 2 exit criteria); the in-app run comes in Phase 3. The box is confirmed 32-bit only, so `armeabi-v7a` is likely the ABI that matters, and it is the less-travelled path for both libraries. Mitigation: `gomobile bind` for both ARM targets is an exit criterion from Phase 1 onward, and Phase 3 runs it on the real box before any UI is built. Fallback for SQLite: `mattn/go-sqlite3` with CGO through the NDK.
 2. **Codec coverage.** ExoPlayer relies on the device decoders. DTS and some AC3 audio only work as passthrough to a capable receiver, and odd AVI codecs may not play at all. Mitigation if it bites: add a Media3 FFmpeg audio decoder extension in Phase 5.
 3. **Memory and storage on the box.** 2 GB RAM with only ~500 MB free at idle, and 8 GB flash. The torrent client needs a hard memory budget (Phase 2 exit criterion: measure RSS while streaming). Mitigation: capped torrent connections, no mmap storage, bounded image cache, cache sweep at startup and at player exit.
 4. **Indexer churn.** YTS and EZTV endpoints change. Mitigation: URLs are settings; the provider interface makes adding Torznab sources a configuration change.

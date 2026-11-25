@@ -1,6 +1,7 @@
 # Go
 core/build/
 core/lookee-cli
+core/lookee-cli-android
 *.test
 *.out
 
