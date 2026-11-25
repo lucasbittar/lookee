@@ -69,6 +69,8 @@ data class Source(
     val discMenu: Boolean = false,
     /** Tried in order when [uri] fails to open (a disc image: DVD first, then Blu-ray). */
     val alternates: List<Uri> = emptyList(),
+    /** The length when the source can't say (the core's Blu-ray stream: its playlist's length). */
+    val durationHintMs: Long = 0,
 )
 
 /** An audio or subtitle track to pick. */
@@ -90,6 +92,8 @@ data class EngineState(
     val text: List<Choice> = emptyList(),
     /** The header chip: "1080p · H.264 · AC3". */
     val summary: String = "",
+    /** The video's frames per second, when known: the TV's refresh rate is matched to it. */
+    val frameRate: Float = 0f,
     /** A disc menu is on screen: the D-pad goes to the menu, not the controls. */
     val inMenu: Boolean = false,
     val hasMenu: Boolean = false,

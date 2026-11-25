@@ -35,8 +35,9 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
         context,
         arrayListOf(
             "--audio-time-stretch",
-            "--deinterlace=-1", // DVDs are interlaced: deinterlace when the stream says so
-            "--deinterlace-mode=yadif",
+            // No software deinterlacing: it forces every frame off the hardware decoder and the
+            // Mi Box's CPU can't keep up (DVDs stuttered). The Amlogic decoder handles interlace.
+            "--deinterlace=0",
             "--sub-text-scale=100",
             "--no-osd",
         ),
@@ -46,6 +47,10 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
     private var alternates: List<Uri> = emptyList()
     private var described = false
     private var lastLoad: Pair<Source, Long>? = null
+    private var durationHint = 0L
+
+    /** VLC's own length, else the source's hint (a stream served by the core has none). */
+    private val length: Long get() = player.length.takeIf { it > 0 } ?: durationHint
 
     init {
         player.setEventListener { e ->
@@ -57,7 +62,7 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
                 MediaPlayer.Event.Paused, MediaPlayer.Event.Stopped -> _state.update { it.copy(playing = false) }
                 MediaPlayer.Event.Buffering -> _state.update { it.copy(buffering = e.buffering < 100f) }
                 MediaPlayer.Event.TimeChanged -> _state.update { it.copy(positionMs = e.timeChanged) }
-                MediaPlayer.Event.LengthChanged -> _state.update { it.copy(durationMs = e.lengthChanged) }
+                MediaPlayer.Event.LengthChanged -> if (e.lengthChanged > 0) _state.update { it.copy(durationMs = e.lengthChanged) }
                 MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESDeleted, MediaPlayer.Event.ESSelected, MediaPlayer.Event.Vout -> refreshTracks()
                 MediaPlayer.Event.EndReached -> _state.update { it.copy(ended = true, playing = false) }
                 MediaPlayer.Event.EncounteredError -> onError()
@@ -82,6 +87,7 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
     override fun load(source: Source, startMs: Long) {
         label = source.label
         alternates = source.alternates
+        durationHint = source.durationHintMs
         lastLoad = source to startMs
         _state.value = EngineState(hasMenu = source.discMenu)
         open(source.uri, startMs, source.discMenu)
@@ -109,7 +115,7 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
         _state.update {
             it.copy(
                 positionMs = if (player.time >= 0) player.time else it.positionMs,
-                durationMs = player.length.takeIf { l -> l > 0 } ?: it.durationMs,
+                durationMs = length.takeIf { l -> l > 0 } ?: it.durationMs,
                 inMenu = inMenu,
                 hasMenu = it.hasMenu || hasMenu,
             )
@@ -148,6 +154,10 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
                 else -> null
             }
         }
+        video?.takeIf { it.frameRateDen > 0 && it.frameRateNum > 0 }?.let { v ->
+            val fps = v.frameRateNum.toFloat() / v.frameRateDen
+            if (fps != _state.value.frameRate) _state.update { st -> st.copy(frameRate = fps) }
+        }
         return listOfNotNull(res, video?.codec?.let(::fourcc), audio?.codec?.let(::fourcc)).joinToString(" · ")
     }
 
@@ -178,8 +188,14 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
     }
 
     override fun seekTo(ms: Long) {
-        val length = player.length
-        player.time = if (length > 0) ms.coerceIn(0, length) else ms.coerceAtLeast(0)
+        val total = length
+        val target = if (total > 0) ms.coerceIn(0, total) else ms.coerceAtLeast(0)
+        if (player.length <= 0 && total > 0) {
+            // A stream VLC can't time: seek by position within the known length.
+            player.position = target.toFloat() / total
+        } else {
+            player.time = target
+        }
     }
 
     override fun seekBy(deltaMs: Long) = seekTo(player.time + deltaMs)

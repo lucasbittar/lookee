@@ -97,6 +97,11 @@ fun resolution(f: Format): String? {
     }
 }
 
+/** The playing video's frame rate, when the container says. */
+fun Tracks.videoFrameRate(): Float? = groups.firstOrNull { it.type == C.TRACK_TYPE_VIDEO && it.isSelected }?.let { g ->
+    (0 until g.length).firstOrNull { g.isTrackSelected(it) }?.let { g.getTrackFormat(it).frameRate }
+}?.takeIf { it > 0 }
+
 /** The chip in the player header: "1080p · H.264 · AC3". */
 fun Tracks.summary(): String {
     val video = groups.firstOrNull { it.type == C.TRACK_TYPE_VIDEO && it.isSelected }?.let { g -> (0 until g.length).firstOrNull { g.isTrackSelected(it) }?.let(g::getTrackFormat) }

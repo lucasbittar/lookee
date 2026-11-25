@@ -29,6 +29,7 @@ import com.lookee.tv.ui.player.codecName
 import com.lookee.tv.ui.player.describe
 import com.lookee.tv.ui.player.summary
 import com.lookee.tv.ui.player.trackChoices
+import com.lookee.tv.ui.player.videoFrameRate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -84,6 +85,7 @@ class ExoEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
                     audio = tracks.trackChoices(C.TRACK_TYPE_AUDIO),
                     text = tracks.trackChoices(C.TRACK_TYPE_TEXT),
                     summary = tracks.summary(),
+                    frameRate = tracks.videoFrameRate() ?: it.frameRate,
                 )
             }
             if (tracks.isEmpty || described) return

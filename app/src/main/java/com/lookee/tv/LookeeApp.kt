@@ -34,6 +34,7 @@ class LookeeApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        recordCrashes()
         // Opening SQLite and sweeping old stream pieces takes a moment: do it off the main
         // thread. Every bridge call waits for it, and a failure surfaces on the first call.
         val ready = appScope.async(Dispatchers.IO) {
@@ -83,6 +84,22 @@ class LookeeApp : Application(), ImageLoaderFactory {
             roots.size -> "Drive connected · $folders"
             0 -> "Drive not connected · your library is still here"
             else -> "$online of $folders available"
+        }
+    }
+
+    /**
+     * A crash in the app's own code goes to the core's log before the process dies, so it can
+     * be read from the phone page with USB debugging off (CLAUDE.md "Diagnose without ADB").
+     * The call into Go is synchronous on purpose: there's no later.
+     */
+    private fun recordCrashes() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching {
+                val trace = error.stackTraceToString().lines().take(14).joinToString(" | ")
+                Lookeecore.logEvent("warn", "crash on ${thread.name}: $trace")
+            }
+            previous?.uncaughtException(thread, error)
         }
     }
 

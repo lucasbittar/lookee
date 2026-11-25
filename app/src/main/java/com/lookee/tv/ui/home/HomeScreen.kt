@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -281,7 +282,8 @@ fun SyncPill(scan: ScanUpdate?, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(Modifier.width(8.dp).fillMaxHeight().padding(vertical = 2.dp).clip(RoundedCornerShape(50)).background(LookeeColors.Accent))
+        // A fixed-size dot: fillMaxHeight here stretched the pill down the whole screen.
+        Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(LookeeColors.Accent))
         Text(text, style = MaterialTheme.typography.labelMedium, color = LookeeColors.Text)
     }
 }

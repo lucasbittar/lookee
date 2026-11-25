@@ -197,6 +197,13 @@ fun PlayerScreen(item: PlayItem) {
         }
     }
 
+    // The TV follows the video's frame rate while the player is open (see RefreshRate).
+    val activity = context as? android.app.Activity
+    LaunchedEffect(ui.frameRate) {
+        if (activity != null && ui.frameRate > 0f) RefreshRate.match(activity, ui.frameRate)?.let { log(it, false) }
+    }
+    DisposableEffect(activity) { onDispose { activity?.let(RefreshRate::restore) } }
+
     // Leaving the app (Home button) pauses.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
@@ -404,7 +411,9 @@ private suspend fun resolveSource(item: PlayItem, app: LookeeApp): Pair<Source, 
         file.name.equals("BDMV", ignoreCase = true) -> Source(mrl("bluray", file.parentFile ?: file), label, discMenu = true, alternates = listOfNotNull(mainTitle("bluray"))) to true
         File(file, "BDMV").isDirectory -> Source(mrl("bluray", file), label, discMenu = true, alternates = listOfNotNull(mainTitle("bluray"))) to true
         // Flattened Blu-ray copy: the core serves the main playlist as one stream.
-        else -> Source(Uri.parse(app.core.playDisc(item.path, "bluray").url), label) to true
+        else -> app.core.playDisc(item.path, "bluray").let { play ->
+            Source(Uri.parse(play.url), label, durationHintMs = (play.seconds * 1000).toLong()) to true
+        }
     }
 }
 
