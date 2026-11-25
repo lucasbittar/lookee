@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Window theme only: Compose draws everything. The dark background avoids a white flash at launch. -->
+    <!-- Window theme only: Compose draws everything. The window background shows the mark at launch (no white flash, no blank wait). -->
     <style name="Theme.Lookee" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/bg</item>
+        <item name="android:windowBackground">@drawable/splash_window</item>
         <item name="android:colorBackground">@color/bg</item>
         <item name="android:statusBarColor">@color/bg</item>
         <item name="android:navigationBarColor">@color/bg</item>

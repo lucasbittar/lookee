@@ -81,7 +81,7 @@ data class HomeState(
     val error: String? = null,
 )
 
-class HomeViewModel(private val core: GoCoreBridge, library: LibrarySync) : ViewModel() {
+class HomeViewModel(private val core: GoCoreBridge, library: LibrarySync, private val onFirstLoad: () -> Unit = {}) : ViewModel() {
     private val _state = MutableStateFlow(HomeState())
     val state: StateFlow<HomeState> = _state
 
@@ -97,6 +97,7 @@ class HomeViewModel(private val core: GoCoreBridge, library: LibrarySync) : View
         } catch (e: Exception) {
             _state.value.copy(loading = false, error = e.message)
         }
+        onFirstLoad()
     }
 
     fun focus(hero: Hero) {
@@ -141,7 +142,7 @@ fun heroOf(t: MediaTitle) = Hero(
 @Composable
 fun HomeScreen() {
     val app = LookeeApp.from(LocalContext.current)
-    val vm = viewModel { HomeViewModel(app.core, app.library) }
+    val vm = viewModel { HomeViewModel(app.core, app.library, app.boot::homeReady) }
     val state by vm.state.collectAsStateWithLifecycle()
     val scan by app.library.scan.collectAsStateWithLifecycle()
     val nav = LocalNavigator.current

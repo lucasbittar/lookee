@@ -5,7 +5,17 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.app.Activity
+import android.graphics.drawable.ColorDrawable
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import com.lookee.tv.ui.splash.BootSplash
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -84,6 +94,9 @@ fun LookeeRoot() {
     val tabsRequester = remember { FocusRequester() }
     val pushedRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
+    val boot by app.boot.state.collectAsState()
+    // Shown on a cold start only: reopening the app while the process lives skips it.
+    var splash by remember { mutableStateOf(!app.boot.state.value.done) }
 
     // Library folders are read by path, which needs the storage permission (Decision 1).
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -130,7 +143,9 @@ fun LookeeRoot() {
         Box(
             Modifier
                 .fillMaxSize()
-                .background(LookeeColors.Bg),
+                .background(LookeeColors.Bg)
+                // Home is composed under the splash; keys mustn't move focus there unseen.
+                .onPreviewKeyEvent { splash && it.key != Key.Back },
         ) {
             // The tabs stay composed under pushed screens, so their scroll and focus survive.
             Box(
@@ -211,6 +226,14 @@ fun LookeeRoot() {
                         is Route.Buffering -> BufferingScreen(pushed.title, pushed.result)
                         Route.AddFolder -> AddFolderScreen()
                     }
+                }
+            }
+
+            AnimatedVisibility(visible = splash, enter = EnterTransition.None, exit = fadeOut(tween(360)), modifier = Modifier.zIndex(3f)) {
+                BootSplash(boot) {
+                    splash = false
+                    // The launch logo stays behind everything otherwise: drop it to save overdraw.
+                    (context as? Activity)?.window?.setBackgroundDrawable(ColorDrawable(LookeeColors.Bg.toArgb()))
                 }
             }
         }

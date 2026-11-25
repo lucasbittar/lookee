@@ -7,12 +7,16 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.lookee.tv.data.Boot
+import com.lookee.tv.data.BootStep
 import com.lookee.tv.data.GoCoreBridge
 import com.lookee.tv.data.LibrarySync
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class LookeeApp : Application(), ImageLoaderFactory {
@@ -25,11 +29,19 @@ class LookeeApp : Application(), ImageLoaderFactory {
     lateinit var library: LibrarySync
         private set
 
+    /** Startup progress, shown by the splash. */
+    val boot = Boot()
+
     override fun onCreate() {
         super.onCreate()
         // Opening SQLite and sweeping old stream pieces takes a moment: do it off the main
         // thread. Every bridge call waits for it, and a failure surfaces on the first call.
         val ready = appScope.async(Dispatchers.IO) {
+            boot.step(BootStep.Engine)
+            // The first touch of Lookeecore loads libgojni.so and starts the Go runtime: the
+            // slowest part of a cold start on the Mi Box.
+            Lookeecore.coreVersion()
+            boot.step(BootStep.Library)
             Lookeecore.initEngine(
                 filesDir.absolutePath,
                 cacheDir.absolutePath,
@@ -39,7 +51,39 @@ class LookeeApp : Application(), ImageLoaderFactory {
         }
         core = GoCoreBridge(ready)
         library = LibrarySync(core, appScope)
-        appScope.launch { seedPrivateDefaults() }
+        appScope.launch { startUp(ready) }
+    }
+
+    /** The boot steps after the engine; the splash follows them. Failures never stop the app. */
+    private suspend fun startUp(ready: Deferred<Unit>) {
+        val failure = runCatching { ready.await() }.exceptionOrNull()
+        if (failure != null) {
+            boot.fail(failure.message ?: "The engine didn't start")
+            delay(ERROR_HOLD_MS)
+            boot.step(BootStep.Done)
+            return
+        }
+        boot.step(BootStep.Sources)
+        seedPrivateDefaults()
+        boot.step(BootStep.Drives)
+        boot.detail(runCatching { drivesSummary() }.getOrNull())
+        boot.step(BootStep.Home)
+        boot.awaitHome()
+        boot.step(BootStep.Done)
+    }
+
+    /** "Drive connected · 3 folders", from the live volume list (a root's saved flag is from the last scan). */
+    private suspend fun drivesSummary(): String {
+        val roots = core.roots()
+        if (roots.isEmpty()) return "No folders added yet"
+        val volumes = core.storageVolumes()
+        val online = roots.count { root -> volumes.any { root.path.startsWith(it.path) } }
+        val folders = if (roots.size == 1) "1 folder" else "${roots.size} folders"
+        return when (online) {
+            roots.size -> "Drive connected · $folders"
+            0 -> "Drive not connected · your library is still here"
+            else -> "$online of $folders available"
+        }
     }
 
     /**
@@ -62,6 +106,7 @@ class LookeeApp : Application(), ImageLoaderFactory {
 
     companion object {
         private const val DEFAULTS_ASSET = "sources.local.json"
+        private const val ERROR_HOLD_MS = 5_000L
 
         fun from(context: Context): LookeeApp = context.applicationContext as LookeeApp
     }
