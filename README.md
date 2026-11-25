@@ -89,3 +89,5 @@ This product uses the TMDB API but is not endorsed or certified by TMDB.
 ## License
 
 [MIT](LICENSE)
+
+lookee plays discs and some audio formats with [libVLC](https://www.videolan.org/vlc/libvlc.html) (LGPL-2.1-or-later), linked dynamically from VideoLAN's `libvlc-all` Android library. The fonts (Inter, Bebas Neue, JetBrains Mono) are under the SIL Open Font License; see `app/licenses/`.

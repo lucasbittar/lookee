@@ -1,10 +1,6 @@
 package com.lookee.tv.ui.player
 
-import com.lookee.tv.data.Codes
-import com.lookee.tv.data.LookeeException
-import android.graphics.Color as AndroidColor
 import android.net.Uri
-import androidx.annotation.OptIn
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -27,18 +23,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -67,35 +62,30 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.media3.common.C
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.common.Tracks
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.DefaultRenderersFactory
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.CaptionStyleCompat
-import androidx.media3.ui.PlayerView
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Glow
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.lookee.tv.LookeeApp
-import com.lookee.tv.R
+import com.lookee.tv.data.Codes
+import com.lookee.tv.data.LookeeException
 import com.lookee.tv.ui.components.LookeeButton
 import com.lookee.tv.ui.components.clock
 import com.lookee.tv.ui.navigation.LocalNavigator
 import com.lookee.tv.ui.navigation.ToastKind
+import com.lookee.tv.ui.player.engine.EngineState
+import com.lookee.tv.ui.player.engine.ExoEngine
+import com.lookee.tv.ui.player.engine.MenuKey
+import com.lookee.tv.ui.player.engine.PlaybackEngine
+import com.lookee.tv.ui.player.engine.Source
+import com.lookee.tv.ui.player.engine.SubtitleSize
+import com.lookee.tv.ui.player.engine.VlcEngine
 import com.lookee.tv.ui.theme.LookeeColors
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -108,192 +98,134 @@ private const val OSD_HIDE_MS = 4_000L
 private const val SAVE_EVERY_MS = 5_000L
 private const val SEEK_MS = 10_000L
 
-enum class SubtitleSize(val label: String, val fraction: Float) {
-    Small("Small", 0.045f),
-    Medium("Medium", 0.055f),
-    Large("Large", 0.068f),
-}
-
 private enum class Panel { Subtitles, Audio }
 
 private enum class OsdFocus { Play, Bar }
 
-/** Live player state the OSD draws from. */
-private data class Ui(
-    val playing: Boolean = false,
-    val buffering: Boolean = true,
-    val positionMs: Long = 0,
-    val durationMs: Long = 0,
-    val bufferedMs: Long = 0,
-    val tracks: Tracks = Tracks.EMPTY,
-    val error: String? = null,
-)
+/** An engine playing a source. A new session replaces the old one (next item, VLC fallback). */
+private class Session(val engine: PlaybackEngine, val source: Source, val item: PlayItem)
 
 /**
- * The player (DESIGN.md mockup "Player controls"). ExoPlayer decodes in hardware through
- * MediaCodec; Compose draws the OSD over a bare PlayerView (its own controls are off).
+ * The player (DESIGN.md mockup "Player controls"), drawn the same over either engine
+ * (ExoPlayer for files and streams, VLC for discs and for files ExoPlayer can't play).
  *
  * Remote: with the OSD hidden, OK pauses or plays, ◀ ▶ jump 10 s (hold to keep going), ▲ ▼
  * show the controls. With the OSD up, the D-pad moves between the bar and the buttons, and on
- * the bar ◀ ▶ seek. Back closes a panel, then hides the OSD, then leaves.
+ * the bar ◀ ▶ seek. In a disc menu, the D-pad and OK drive the menu. Back closes a panel,
+ * then hides the OSD, then leaves.
  */
-@OptIn(UnstableApi::class)
 @Composable
 fun PlayerScreen(item: PlayItem) {
     val context = LocalContext.current
     val app = LookeeApp.from(context)
     val nav = LocalNavigator.current
+    val log: (String, Boolean) -> Unit = { msg, warn -> app.appScope.launch { app.core.logEvent(msg, warn) } }
+
     var current by remember { mutableStateOf(item) }
-    var ui by remember { mutableStateOf(Ui()) }
+    var session by remember { mutableStateOf<Session?>(null) }
+    var openError by remember { mutableStateOf<String?>(null) }
     var subtitleSize by remember { mutableStateOf(SubtitleSize.Medium) }
+    val noState = remember { MutableStateFlow(EngineState()) }
+    val ui by (session?.engine?.state ?: noState).collectAsState()
 
-    val player = remember {
-        ExoPlayer.Builder(context)
-            // A decoder that fails to start falls back to the next one the box has.
-            .setRenderersFactory(DefaultRenderersFactory(context).setEnableDecoderFallback(true))
-            .setSeekBackIncrementMs(SEEK_MS)
-            .setSeekForwardIncrementMs(SEEK_MS)
-            .build()
-    }
-
-    fun save(target: PlayItem = current, finished: Boolean = false) {
-        val duration = player.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: return
-        val position = if (finished) duration else player.currentPosition
+    fun save(s: Session? = session, finished: Boolean = false) {
+        if (s == null || s.source.discMenu) return // a disc at its menu has no single timeline
+        val st = s.engine.state.value
+        if (st.durationMs <= 0) return
+        val position = if (finished) st.durationMs else st.positionMs
         if (position <= 0) return
-        app.appScope.launch { runCatching { app.core.saveProgress(target.path, target.titleId, position, duration) } }
+        app.appScope.launch { runCatching { app.core.saveProgress(s.item.path, s.item.titleId, position, st.durationMs) } }
     }
 
-    // Load the current item: sidecar subtitles go in with it, preferred subtitle language first.
+    fun start(target: PlayItem, source: Source, vlc: Boolean, startMs: Long) {
+        val engine = if (vlc) VlcEngine(context, log) else ExoEngine(context, log)
+        engine.setSubtitleSize(subtitleSize)
+        engine.load(source, startMs)
+        session = Session(engine, source, target)
+        log("play ${source.label} with ${engine.name}" + if (startMs > 0) " from ${clock(startMs)}" else "", false)
+    }
+
+    // Work out what to play and with which engine, then start it.
     LaunchedEffect(current) {
-        ui = Ui()
-        val disc = current.disc
-        val sidecars = if (current.stream || disc != null) emptyList() else runCatching { app.core.sidecarSubtitles(current.path) }.getOrDefault(emptyList())
-        val preferred = runCatching { app.core.settings().subtitleLanguages }.getOrDefault("").split(',').map { it.trim() }.filter { it.isNotEmpty() }
-        // A disc rip plays through the core, which joins its main title into one stream.
-        val discUrl = if (disc == null) null else try {
-            app.core.playDisc(current.path, disc).url
+        openError = null
+        val target = current
+        try {
+            val (source, vlc) = resolveSource(target, app)
+            start(target, source, vlc, target.startMs)
         } catch (e: LookeeException) {
-            ui = ui.copy(error = discProblem(e), buffering = false)
-            app.core.logEvent("disc ${File(current.path).name}: ${e.message}", warn = true)
-            return@LaunchedEffect
+            openError = if (e.code == Codes.UNSUPPORTED_DISC) discProblem(e) else (e.message ?: "This couldn't be opened.")
+            log("open ${File(target.path).name}: ${e.message}", true)
         }
-        val uri = when {
-            discUrl != null -> Uri.parse(discUrl)
-            current.path.startsWith("http") -> Uri.parse(current.path)
-            else -> Uri.fromFile(File(current.path))
-        }
-        val media = MediaItem.Builder()
-            .setUri(uri)
-            .setSubtitleConfigurations(
-                sidecars.map { s ->
-                    MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(File(s.path)))
-                        .setId(SIDECAR_ID + s.name)
-                        .setMimeType(
-                            when (s.format) {
-                                "vtt" -> MimeTypes.TEXT_VTT
-                                "ass", "ssa" -> MimeTypes.TEXT_SSA
-                                else -> MimeTypes.APPLICATION_SUBRIP
-                            },
-                        )
-                        .setLanguage(s.language.ifEmpty { null })
-                        .setLabel(s.language.ifEmpty { s.name })
-                        .build()
-                },
-            )
-            .build()
-        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-            // Subtitles come on by themselves only in the first preferred language (pt-BR here).
-            .setPreferredTextLanguages(*preferred.take(1).toTypedArray())
-            .build()
-        player.setMediaItem(media, current.startMs)
-        player.prepare()
-        player.playWhenReady = true
-        app.core.logEvent("play ${File(current.path).name} from ${clock(current.startMs)}")
     }
 
-    // Player events → UI state, diagnostics, end of item.
-    val latest by rememberUpdatedState(current)
-    DisposableEffect(player) {
-        var described = false
-        val listener = object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                ui = ui.copy(playing = isPlaying)
-                if (!isPlaying) save()
-            }
+    // ExoPlayer couldn't play it: carry on with VLC from the same spot.
+    LaunchedEffect(ui.fallback) {
+        val reason = ui.fallback ?: return@LaunchedEffect
+        val old = session ?: return@LaunchedEffect
+        if (old.engine is VlcEngine) return@LaunchedEffect
+        val at = old.engine.state.value.positionMs.coerceAtLeast(old.item.startMs)
+        log("switching ${old.source.label} to vlc: $reason", true)
+        nav.toast("Switching player for this file's format", ToastKind.Info)
+        start(old.item, old.source, vlc = true, startMs = at)
+    }
 
-            override fun onPlaybackStateChanged(state: Int) {
-                ui = ui.copy(buffering = state == Player.STATE_BUFFERING)
-                if (state == Player.STATE_ENDED) {
-                    save(latest, finished = true)
-                    val next = latest.next
-                    if (next != null) current = next.copy(startMs = 0) else nav.pop()
-                }
-            }
+    // The end of an item: the next in the queue, or back out.
+    LaunchedEffect(ui.ended) {
+        if (!ui.ended) return@LaunchedEffect
+        save(finished = true)
+        val next = current.next
+        if (next != null) current = next.copy(startMs = 0) else nav.pop()
+    }
 
-            override fun onTracksChanged(tracks: Tracks) {
-                ui = ui.copy(tracks = tracks)
-                if (tracks.isEmpty || described) return
-                described = true
-                app.appScope.launch { app.core.logEvent("tracks ${File(latest.path).name}: ${tracks.describe()}") }
-                val audio = tracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
-                if (audio.isNotEmpty() && audio.none { it.isSupported }) {
-                    val codec = (0 until audio[0].length).firstNotNullOfOrNull { codecName(audio[0].getTrackFormat(it).sampleMimeType) } ?: "this"
-                    nav.toast("This file's $codec audio can't play on this box", ToastKind.Problem)
-                    app.appScope.launch { app.core.logEvent("no playable audio in ${File(latest.path).name} ($codec)", warn = true) }
-                }
-                val video = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
-                if (video.isNotEmpty() && video.none { it.isSupported }) {
-                    val codec = codecName(video[0].getTrackFormat(0).sampleMimeType) ?: "this"
-                    ui = ui.copy(error = "This box can't decode $codec video.")
-                }
-            }
-
-            override fun onPlayerError(error: PlaybackException) {
-                ui = ui.copy(error = explain(error), buffering = false)
-                app.appScope.launch { app.core.logEvent("playback error ${File(latest.path).name}: ${error.errorCodeName} ${error.cause?.message.orEmpty()}", warn = true) }
-            }
-
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                described = false
-            }
-        }
-        player.addListener(listener)
+    // Each session's engine is released when it's replaced or the screen closes.
+    val s = session
+    DisposableEffect(s) {
         onDispose {
-            player.removeListener(listener)
-            save()
-            player.release()
+            if (s != null) {
+                save(s)
+                s.engine.release()
+            }
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
             app.library.changed() // Continue Watching and progress bars catch up
-            if (current.stream) app.appScope.launch { runCatching { app.core.stopStream() } }
-            app.appScope.launch { app.core.stopDisc() }
+            app.appScope.launch {
+                if (item.stream) runCatching { app.core.stopStream() }
+                app.core.stopDisc()
+            }
         }
     }
 
-    // Leaving the app (Home button) pauses and saves.
+    // Leaving the app (Home button) pauses.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) player.pause() }
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) session?.engine?.pause() }
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
 
-    // Position for the bar, and a save every few seconds while playing.
-    LaunchedEffect(player) {
+    // Position and menus four times a second; a save every few seconds while playing.
+    LaunchedEffect(Unit) {
         var sinceSave = 0L
         while (true) {
-            ui = ui.copy(
-                positionMs = player.currentPosition,
-                durationMs = player.duration.takeIf { it != C.TIME_UNSET } ?: 0,
-                bufferedMs = player.bufferedPosition,
-            )
+            session?.engine?.poll()
             delay(250)
             sinceSave += 250
-            if (sinceSave >= SAVE_EVERY_MS && player.isPlaying) {
+            if (sinceSave >= SAVE_EVERY_MS && session?.engine?.state?.value?.playing == true) {
                 sinceSave = 0
                 save()
             }
         }
     }
+    var wasPlaying by remember { mutableStateOf(false) }
+    LaunchedEffect(ui.playing) {
+        if (wasPlaying && !ui.playing) save()
+        wasPlaying = ui.playing
+    }
+
+    val engine = session?.engine
+    val error = openError ?: ui.error
 
     // ---- OSD visibility and focus ----
     var osd by remember { mutableStateOf(true) }
@@ -303,7 +235,8 @@ fun PlayerScreen(item: PlayItem) {
     val root = remember { FocusRequester() }
     val playButton = remember { FocusRequester() }
     val bar = remember { FocusRequester() }
-    val alpha by animateFloatAsState(if (osd || panel != null) 1f else 0f, tween(220), label = "osd")
+    val showControls = (osd || panel != null) && !ui.inMenu
+    val alpha by animateFloatAsState(if (showControls) 1f else 0f, tween(220), label = "osd")
 
     fun show(focus: OsdFocus) {
         osdFocus = focus
@@ -311,17 +244,17 @@ fun PlayerScreen(item: PlayItem) {
         lastInput = System.nanoTime()
     }
     LaunchedEffect(osd, ui.playing, lastInput, panel) {
-        if (osd && ui.playing && panel == null && ui.error == null) {
+        if (osd && ui.playing && panel == null && error == null) {
             delay(OSD_HIDE_MS)
             osd = false
         }
     }
-    LaunchedEffect(osd, osdFocus, panel, ui.error) {
+    LaunchedEffect(showControls, osdFocus, panel, error) {
         withFrameNanos { }
-        if (panel != null || ui.error != null) return@LaunchedEffect
+        if (panel != null || error != null) return@LaunchedEffect
         runCatching {
             when {
-                !osd -> root.requestFocus()
+                !showControls -> root.requestFocus()
                 osdFocus == OsdFocus.Bar -> bar.requestFocus()
                 else -> playButton.requestFocus()
             }
@@ -333,7 +266,7 @@ fun PlayerScreen(item: PlayItem) {
     val back = {
         when {
             panel != null -> panel = null
-            osd && ui.error == null && ui.playing -> osd = false
+            osd && error == null && ui.playing && !ui.inMenu -> osd = false
             else -> nav.pop()
         }
     }
@@ -343,26 +276,41 @@ fun PlayerScreen(item: PlayItem) {
             .fillMaxSize()
             .background(Color.Black)
             .onPreviewKeyEvent { e ->
-                if (e.type == KeyEventType.KeyDown) lastInput = System.nanoTime()
+                val down = e.type == KeyEventType.KeyDown
+                if (down) lastInput = System.nanoTime()
                 if (e.key == Key.Back || e.key == Key.Escape) {
                     if (e.type == KeyEventType.KeyUp) back()
                     return@onPreviewKeyEvent true
                 }
+                val eng = engine ?: return@onPreviewKeyEvent false
                 // Media keys work everywhere.
-                val down = e.type == KeyEventType.KeyDown
                 when (e.key) {
-                    Key.MediaPlayPause -> { if (down) togglePlay(player); return@onPreviewKeyEvent true }
-                    Key.MediaPlay -> { if (down) player.play(); return@onPreviewKeyEvent true }
-                    Key.MediaPause -> { if (down) player.pause(); return@onPreviewKeyEvent true }
-                    Key.MediaFastForward -> { if (down) { player.seekForward(); show(OsdFocus.Bar) }; return@onPreviewKeyEvent true }
-                    Key.MediaRewind -> { if (down) { player.seekBack(); show(OsdFocus.Bar) }; return@onPreviewKeyEvent true }
+                    Key.MediaPlayPause -> { if (down) eng.togglePlay(); return@onPreviewKeyEvent true }
+                    Key.MediaPlay -> { if (down) eng.play(); return@onPreviewKeyEvent true }
+                    Key.MediaPause -> { if (down) eng.pause(); return@onPreviewKeyEvent true }
+                    Key.MediaFastForward -> { if (down) { eng.seekBy(SEEK_MS); show(OsdFocus.Bar) }; return@onPreviewKeyEvent true }
+                    Key.MediaRewind -> { if (down) { eng.seekBy(-SEEK_MS); show(OsdFocus.Bar) }; return@onPreviewKeyEvent true }
                 }
-                if (osd || panel != null || ui.error != null) return@onPreviewKeyEvent false
+                if (panel != null || error != null) return@onPreviewKeyEvent false
+                // A disc menu on screen: the D-pad moves its highlight, OK picks.
+                if (ui.inMenu) {
+                    val key = when (e.key) {
+                        Key.DirectionUp -> MenuKey.Up
+                        Key.DirectionDown -> MenuKey.Down
+                        Key.DirectionLeft -> MenuKey.Left
+                        Key.DirectionRight -> MenuKey.Right
+                        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> MenuKey.Activate
+                        else -> null
+                    } ?: return@onPreviewKeyEvent false
+                    if (down) eng.navigate(key)
+                    return@onPreviewKeyEvent true
+                }
+                if (osd) return@onPreviewKeyEvent false
                 // OSD hidden: the remote drives playback directly.
                 when (e.key) {
-                    Key.DirectionLeft -> { if (down) { player.seekBack(); show(OsdFocus.Bar) }; true }
-                    Key.DirectionRight -> { if (down) { player.seekForward(); show(OsdFocus.Bar) }; true }
-                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { if (down) { togglePlay(player); show(OsdFocus.Play) }; true }
+                    Key.DirectionLeft -> { if (down) { eng.seekBy(-SEEK_MS); show(OsdFocus.Bar) }; true }
+                    Key.DirectionRight -> { if (down) { eng.seekBy(SEEK_MS); show(OsdFocus.Bar) }; true }
+                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> { if (down) { eng.togglePlay(); show(OsdFocus.Play) }; true }
                     Key.DirectionUp, Key.DirectionDown -> { if (down) show(OsdFocus.Play); true }
                     else -> false
                 }
@@ -370,60 +318,31 @@ fun PlayerScreen(item: PlayItem) {
             .focusRequester(root)
             .focusable(),
     ) {
-        AndroidView(
-            factory = { ctx ->
-                PlayerView(ctx).apply {
-                    useController = false
-                    keepScreenOn = true
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    setShutterBackgroundColor(AndroidColor.BLACK)
-                    this.player = player
-                    subtitleView?.apply {
-                        setApplyEmbeddedFontSizes(false)
-                        setStyle(
-                            CaptionStyleCompat(
-                                AndroidColor.WHITE,
-                                AndroidColor.TRANSPARENT,
-                                AndroidColor.TRANSPARENT,
-                                CaptionStyleCompat.EDGE_TYPE_DROP_SHADOW,
-                                AndroidColor.BLACK,
-                                ResourcesCompat.getFont(ctx, R.font.inter_semi_bold),
-                            ),
-                        )
-                    }
-                }
-            },
-            update = { view -> view.subtitleView?.setFractionalTextSize(subtitleSize.fraction) },
-            modifier = Modifier.fillMaxSize(),
-        )
+        engine?.VideoSurface(Modifier.fillMaxSize())
 
-        if (ui.buffering && ui.error == null) Spinner(Modifier.align(Alignment.Center))
+        if ((engine == null || ui.buffering) && error == null && !ui.inMenu) Spinner(Modifier.align(Alignment.Center))
 
         // ---- OSD ----
-        if (ui.error == null) Box(Modifier.fillMaxSize().alpha(alpha)) {
+        if (error == null && engine != null) Box(Modifier.fillMaxSize().alpha(alpha)) {
             Box(Modifier.fillMaxWidth().height(140.dp).background(Brush.verticalGradient(listOf(Ink.copy(alpha = 0.85f), Color.Transparent))))
             Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(210.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Ink.copy(alpha = 0.92f)))))
-            Header(current, ui.tracks, Modifier.padding(start = 48.dp, end = 48.dp, top = 32.dp))
+            Header(current, ui.summary, Modifier.padding(start = 48.dp, end = 48.dp, top = 32.dp))
             Column(
                 Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 48.dp, end = 48.dp, bottom = 36.dp),
                 verticalArrangement = Arrangement.spacedBy(17.dp),
             ) {
-                SeekBar(
-                    ui,
-                    onSeek = { delta -> player.seekTo((player.currentPosition + delta).coerceIn(0, player.duration.coerceAtLeast(0))) },
-                    modifier = Modifier.focusRequester(bar),
-                )
+                SeekBar(ui, onSeek = { delta -> engine.seekBy(delta) }, modifier = Modifier.focusRequester(bar))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        val text = ui.tracks.choices(C.TRACK_TYPE_TEXT)
-                        val on = text.firstOrNull { it.selected }
+                        val on = ui.text.firstOrNull { it.selected }
                         PillButton("Subtitles" + (on?.let { " · ${it.label}" } ?: ""), Glyph.Subtitles) { panel = Panel.Subtitles }
-                        if (ui.tracks.choices(C.TRACK_TYPE_AUDIO).size > 1) PillButton("Audio", Glyph.Audio) { panel = Panel.Audio }
+                        if (ui.audio.size > 1) PillButton("Audio", Glyph.Audio) { panel = Panel.Audio }
+                        if (ui.hasMenu) PillButton("Disc menu", Glyph.Menu) { engine.showDiscMenu() }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        RoundButton(44.dp, onClick = { player.seekBack() }) { Skip(back = true, it) }
-                        RoundButton(64.dp, primary = true, onClick = { togglePlay(player) }, modifier = Modifier.focusRequester(playButton)) { PlayPause(ui.playing, it) }
-                        RoundButton(44.dp, onClick = { player.seekForward() }) { Skip(back = false, it) }
+                        RoundButton(44.dp, onClick = { engine.seekBy(-SEEK_MS) }) { Skip(back = true, it) }
+                        RoundButton(64.dp, primary = true, onClick = { engine.togglePlay() }, modifier = Modifier.focusRequester(playButton)) { PlayPause(ui.playing, it) }
+                        RoundButton(44.dp, onClick = { engine.seekBy(SEEK_MS) }) { Skip(back = false, it) }
                     }
                     Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
                         current.next?.let { next ->
@@ -437,53 +356,75 @@ fun PlayerScreen(item: PlayItem) {
             }
         }
 
-        ui.error?.let { message -> ErrorPanel(message, onBack = { nav.pop() }, Modifier.align(Alignment.Center)) }
+        error?.let { message -> ErrorPanel(message, onBack = { nav.pop() }, Modifier.align(Alignment.Center)) }
 
         panel?.let { p ->
+            val subtitles = p == Panel.Subtitles
             TrackPanel(
-                title = if (p == Panel.Subtitles) "Subtitles" else "Audio",
-                choices = ui.tracks.choices(if (p == Panel.Subtitles) C.TRACK_TYPE_TEXT else C.TRACK_TYPE_AUDIO),
-                offOption = p == Panel.Subtitles,
-                offSelected = ui.tracks.choices(C.TRACK_TYPE_TEXT).none { it.selected },
-                onPick = { choice -> if (choice == null) player.subtitlesOff() else player.select(choice) },
-                size = if (p == Panel.Subtitles) subtitleSize else null,
-                onSize = { subtitleSize = it },
+                title = if (subtitles) "Subtitles" else "Audio",
+                choices = if (subtitles) ui.text else ui.audio,
+                offOption = subtitles,
+                offSelected = ui.text.none { it.selected },
+                onPick = { id -> if (subtitles) engine?.selectText(id) else id?.let { engine?.selectAudio(it) } },
+                size = if (subtitles && engine?.canResizeSubtitles == true) subtitleSize else null,
+                onSize = {
+                    subtitleSize = it
+                    engine?.setSubtitleSize(it)
+                },
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
         }
     }
 }
 
-private fun togglePlay(player: Player) {
-    if (player.playbackState == Player.STATE_ENDED) player.seekTo(0)
-    if (player.isPlaying) player.pause() else player.play()
+/**
+ * Which engine plays [item], from what. Discs open in VLC at their menu (dvdnav/libbluray);
+ * a flattened Blu-ray copy has no disc structure VLC knows, so the core joins its main
+ * playlist and VLC plays that. Files and streams start in ExoPlayer.
+ */
+private suspend fun resolveSource(item: PlayItem, app: LookeeApp): Pair<Source, Boolean> {
+    val file = File(item.path)
+    // "VIDEO_TS" and "BDMV" say nothing: name a disc by its folder.
+    val label = if (file.name.equals("VIDEO_TS", true) || file.name.equals("BDMV", true)) file.parentFile?.name ?: file.name else file.name
+    if (item.stream) return Source(Uri.parse(item.path), label) to false
+    val disc = item.disc
+    if (disc == null) {
+        val sidecars = runCatching { app.core.sidecarSubtitles(item.path) }.getOrDefault(emptyList())
+        val preferred = runCatching { app.core.settings().subtitleLanguages }.getOrDefault("").split(',').map { it.trim() }.firstOrNull { it.isNotEmpty() }
+        return Source(Uri.fromFile(file), label, sidecars, preferred) to false
+    }
+    fun mrl(scheme: String, f: File) = Uri.parse("$scheme://" + Uri.fromFile(f).encodedPath)
+    val kind = disc.ifEmpty { guessDisc(file) }
+    // The core's joined main title: the backup when VLC can't open the disc structure (a rip
+    // without its .IFO files, say). Null when the core can't read it either.
+    suspend fun mainTitle(k: String) = runCatching { Uri.parse(app.core.playDisc(item.path, k).url) }.getOrNull()
+    return when {
+        kind == "iso" -> Source(mrl("dvd", file), label, discMenu = true, alternates = listOfNotNull(mrl("bluray", file), mainTitle("iso"))) to true
+        kind == "dvd" -> Source(mrl("dvd", file), label, discMenu = true, alternates = listOfNotNull(mainTitle("dvd"))) to true
+        file.name.equals("BDMV", ignoreCase = true) -> Source(mrl("bluray", file.parentFile ?: file), label, discMenu = true, alternates = listOfNotNull(mainTitle("bluray"))) to true
+        File(file, "BDMV").isDirectory -> Source(mrl("bluray", file), label, discMenu = true, alternates = listOfNotNull(mainTitle("bluray"))) to true
+        // Flattened Blu-ray copy: the core serves the main playlist as one stream.
+        else -> Source(Uri.parse(app.core.playDisc(item.path, "bluray").url), label) to true
+    }
+}
+
+private fun guessDisc(file: File): String = when {
+    file.name.endsWith(".iso", ignoreCase = true) -> "iso"
+    file.name.equals("VIDEO_TS", ignoreCase = true) -> "dvd"
+    file.list()?.any { it.equals("VIDEO_TS", true) || it.endsWith(".vob", true) } == true -> "dvd"
+    else -> "bluray"
 }
 
 /** "Blu-ray disc images can't play yet." from the core's "disc: unsupported: …". */
 private fun discProblem(e: LookeeException): String {
-    if (e.code != Codes.UNSUPPORTED_DISC) return e.message ?: "This disc couldn't be opened."
     val reason = e.message.orEmpty().substringAfterLast("unsupported: ").trim()
     return reason.replaceFirstChar { it.uppercase() }.let { if (it.endsWith('.')) it else "$it." }
-}
-
-/** Plain words for what went wrong; the codes go to the log. */
-private fun explain(e: PlaybackException): String = when (e.errorCode) {
-    PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND, PlaybackException.ERROR_CODE_IO_NO_PERMISSION ->
-        "The file isn't there anymore. Is the drive connected?"
-    PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED, PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ->
-        "lookee can't read this kind of file yet."
-    PlaybackException.ERROR_CODE_DECODER_INIT_FAILED, PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
-    PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES, PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ->
-        "This box can't decode this video."
-    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
-        "The stream stopped responding."
-    else -> "Playback stopped (${e.errorCodeName.removePrefix("ERROR_CODE_").lowercase().replace('_', ' ')})."
 }
 
 // ---- pieces ----
 
 @Composable
-private fun Header(item: PlayItem, tracks: Tracks, modifier: Modifier) {
+private fun Header(item: PlayItem, summary: String, modifier: Modifier) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {
             if (item.subtitle.isNotEmpty()) Text(item.subtitle, fontSize = 13.sp, color = Soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -491,7 +432,7 @@ private fun Header(item: PlayItem, tracks: Tracks, modifier: Modifier) {
         }
         Row(Modifier.padding(start = 24.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Chip(item.source)
-            tracks.summary().takeIf { it.isNotEmpty() }?.let { Chip(it) }
+            summary.takeIf { it.isNotEmpty() }?.let { Chip(it) }
         }
     }
 }
@@ -508,7 +449,7 @@ private fun Chip(text: String) {
 }
 
 @Composable
-private fun SeekBar(ui: Ui, onSeek: (Long) -> Unit, modifier: Modifier = Modifier) {
+private fun SeekBar(ui: EngineState, onSeek: (Long) -> Unit, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }
     val duration = ui.durationMs.coerceAtLeast(1)
     val played = (ui.positionMs.toFloat() / duration).coerceIn(0f, 1f)
@@ -550,7 +491,7 @@ private fun SeekBar(ui: Ui, onSeek: (Long) -> Unit, modifier: Modifier = Modifie
     }
 }
 
-private enum class Glyph { Subtitles, Audio, Next }
+private enum class Glyph { Subtitles, Audio, Next, Menu }
 
 @Composable
 private fun PillButton(text: String, glyph: Glyph, trailingIcon: Boolean = false, onClick: () -> Unit) {
@@ -646,6 +587,9 @@ private fun GlyphIcon(glyph: Glyph, color: Color) {
             Glyph.Audio -> listOf(0.35f, 0.75f, 0.5f, 0.9f).forEachIndexed { i, h ->
                 val x = s * (0.12f + i * 0.25f)
                 drawLine(color, Offset(x, s * (1f - h) / 2 + s * 0.05f), Offset(x, s - s * (1f - h) / 2 - s * 0.05f), strokeWidth = s * 0.13f, cap = StrokeCap.Round)
+            }
+            Glyph.Menu -> listOf(0.22f, 0.5f, 0.78f).forEach { y ->
+                drawLine(color, Offset(s * 0.12f, s * y), Offset(s * 0.88f, s * y), strokeWidth = s * 0.12f, cap = StrokeCap.Round)
             }
             Glyph.Next -> {
                 val p = Path().apply {

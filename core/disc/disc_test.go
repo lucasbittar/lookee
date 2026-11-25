@@ -127,6 +127,9 @@ func TestBlurayLongestPlaylistAsTS(t *testing.T) {
 	write(t, filepath.Join(bdmv, "PLAYLIST", "00000.mpls"), mpls([]string{"00009"}, []uint32{60}))
 	write(t, filepath.Join(bdmv, "PLAYLIST", "00800.mpls"), mpls([]string{"00001", "00002"}, []uint32{3000, 2400}))
 	write(t, filepath.Join(bdmv, "PLAYLIST", "00900.mpls"), mpls([]string{"00404"}, []uint32{9000})) // missing clip
+	// Decoys: the same clips looped, and an absurd length.
+	write(t, filepath.Join(bdmv, "PLAYLIST", "00901.mpls"), mpls([]string{"00001", "00002", "00001", "00002"}, []uint32{3000, 2400, 3000, 2400}))
+	write(t, filepath.Join(bdmv, "PLAYLIST", "00902.mpls"), mpls([]string{"00009", "00002"}, []uint32{30000, 2400}))
 
 	title, err := Find(bdmv, "bluray")
 	if err != nil {

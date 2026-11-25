@@ -68,6 +68,8 @@ dependencies {
     // Playback (Phase 5): hardware decoding through MediaCodec; PlayerView only for its surface and subtitle view.
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
+    // Discs with menus and the audio formats MediaCodec lacks (ROADMAP Decision 14: hybrid).
+    implementation(libs.libvlc)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)

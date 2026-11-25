@@ -46,6 +46,8 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import com.lookee.tv.ui.player.engine.Choice
+import com.lookee.tv.ui.player.engine.SubtitleSize
 import com.lookee.tv.ui.theme.LookeeColors
 
 private val Soft = Color(0xFFC9CED6)
@@ -58,10 +60,10 @@ private val Soft = Color(0xFFC9CED6)
 @Composable
 internal fun TrackPanel(
     title: String,
-    choices: List<TrackChoice>,
+    choices: List<Choice>,
     offOption: Boolean,
     offSelected: Boolean,
-    onPick: (TrackChoice?) -> Unit,
+    onPick: (String?) -> Unit,
     size: SubtitleSize?,
     onSize: (SubtitleSize) -> Unit,
     modifier: Modifier = Modifier,
@@ -90,9 +92,9 @@ internal fun TrackPanel(
                     Option("Off", "", offSelected, true, Modifier.focusRequester(first)) { onPick(null) }
                 }
             }
-            items(choices, key = { "${it.group.mediaTrackGroup.id}/${it.index}" }) { c ->
+            items(choices, key = { it.id }) { c ->
                 val m = if (!offOption && c == choices.first()) Modifier.focusRequester(first) else Modifier
-                Option(c.label, if (c.supported) c.caption else "${c.caption} · can't play here", c.selected, c.supported, m) { if (c.supported) onPick(c) }
+                Option(c.label, if (c.supported) c.caption else "${c.caption} · can't play here".trimStart(' ', '·'), c.selected, c.supported, m) { if (c.supported) onPick(c.id) }
             }
             if (choices.isEmpty() && !offOption) item { Text("Only one track in this file.", fontSize = 13.sp, color = LookeeColors.Muted) }
         }

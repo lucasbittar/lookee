@@ -180,7 +180,7 @@ func bluray(path string) (*Title, error) {
 				continue
 			}
 			items, secs, err := parseMPLS(data)
-			if err != nil || secs <= bestSecs {
+			if err != nil || secs <= bestSecs || !plausible(items, secs) {
 				continue
 			}
 			parts := make([]Part, 0, len(items))
@@ -203,6 +203,26 @@ func bluray(path string) (*Title, error) {
 	}
 	t.Parts = []Part{*largest}
 	return t, nil
+}
+
+// maxPlaylist: no concert or film runs six hours. Longer playlists are decoys.
+const maxPlaylist = 6 * 3600
+
+// plausible rejects decoy playlists, which copy-protected discs ship by the hundred: they
+// loop the same clips (Norah Jones' disc picked a 501-item, 8-hour one) or run absurdly long.
+// A real main title plays each clip once.
+func plausible(clips []string, seconds float64) bool {
+	if seconds > maxPlaylist {
+		return false
+	}
+	seen := make(map[string]bool, len(clips))
+	for _, c := range clips {
+		if seen[c] {
+			return false
+		}
+		seen[c] = true
+	}
+	return true
 }
 
 var clipDigits = regexp.MustCompile(`(\d{5})\.(?i:m2ts)$`)

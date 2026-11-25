@@ -4,51 +4,26 @@ import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
-import androidx.media3.common.Player
-import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
+import com.lookee.tv.ui.player.engine.Choice
 import java.util.Locale
-
-/** One audio or subtitle track the viewer can pick. */
-data class TrackChoice(
-    val group: Tracks.Group,
-    val index: Int,
-    val label: String,
-    val caption: String,
-    val selected: Boolean,
-    val supported: Boolean,
-)
 
 /** Subtitle sidecars are loaded with this id prefix, so the panel can say "Next to the video". */
 const val SIDECAR_ID = "sidecar:"
 
-fun Tracks.choices(type: Int): List<TrackChoice> = groups.filter { it.type == type }.flatMap { g ->
+/** The audio or subtitle tracks as choices; ids are "group/track" indexes into [Tracks.groups]. */
+fun Tracks.trackChoices(type: Int): List<Choice> = groups.withIndex().filter { it.value.type == type }.flatMap { (gi, g) ->
     (0 until g.length).map { i ->
         val f = g.getTrackFormat(i)
-        TrackChoice(
-            group = g,
-            index = i,
+        Choice(
+            id = "$gi/$i",
             label = trackLabel(f, type),
             caption = if (type == C.TRACK_TYPE_AUDIO) audioCaption(f) else if (f.id?.contains(SIDECAR_ID) == true) "Next to the video" else "In the file",
             selected = g.isTrackSelected(i),
             supported = g.isTrackSupported(i),
         )
     }
-}
-
-fun Player.select(choice: TrackChoice) {
-    trackSelectionParameters = trackSelectionParameters.buildUpon()
-        .setTrackTypeDisabled(choice.group.type, false)
-        .setOverrideForType(TrackSelectionOverride(choice.group.mediaTrackGroup, choice.index))
-        .build()
-}
-
-fun Player.subtitlesOff() {
-    trackSelectionParameters = trackSelectionParameters.buildUpon()
-        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-        .build()
 }
 
 private fun trackLabel(f: Format, type: Int): String {
