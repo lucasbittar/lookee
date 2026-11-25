@@ -543,6 +543,9 @@ type FileView struct {
 // TitleDetails is everything the Details screen needs.
 type TitleDetails struct {
 	db.Title
+	// Section is the screen the title shows on: "movies", "concerts", "series" or "tutorials".
+	// A concert film in the Movies folder is "concerts".
+	Section  string          `json:"section"`
 	Cast     []db.CastMember `json:"cast"`
 	Episodes []db.Episode    `json:"episodes"`
 	Files    []FileView      `json:"files"`
@@ -554,7 +557,7 @@ func (e *Engine) Details(ctx context.Context, titleID int64) (TitleDetails, erro
 	if err != nil {
 		return TitleDetails{}, err
 	}
-	d := TitleDetails{Title: t, Cast: []db.CastMember{}, Episodes: []db.Episode{}, Files: []FileView{}}
+	d := TitleDetails{Title: t, Section: sectionOf(t), Cast: []db.CastMember{}, Episodes: []db.Episode{}, Files: []FileView{}}
 	if c, err := e.store.Cast(ctx, titleID); err != nil {
 		return d, err
 	} else if c != nil {
@@ -583,8 +586,31 @@ func (e *Engine) Details(ctx context.Context, titleID int64) (TitleDetails, erro
 	return d, nil
 }
 
-// Browse lists a folder for the Tutorials browser.
-func (e *Engine) Browse(path string) ([]scanner.Entry, error) { return scanner.Browse(path) }
+// BrowseEntry is a folder listing entry with the video's saved progress.
+type BrowseEntry struct {
+	scanner.Entry
+	PositionMS int64 `json:"positionMs,omitempty"`
+	DurationMS int64 `json:"durationMs,omitempty"`
+}
+
+// Browse lists a folder for the Tutorials browser, with each video's progress.
+func (e *Engine) Browse(ctx context.Context, path string) ([]BrowseEntry, error) {
+	entries, err := scanner.Browse(path)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]BrowseEntry, 0, len(entries))
+	for _, en := range entries {
+		be := BrowseEntry{Entry: en}
+		if !en.IsDir {
+			if p, err := e.store.GetProgress(ctx, en.Path); err == nil {
+				be.PositionMS, be.DurationMS = p.PositionMS, p.DurationMS
+			}
+		}
+		out = append(out, be)
+	}
+	return out, nil
+}
 
 // ---- playback progress ----
 

@@ -60,6 +60,9 @@ dependencies {
     implementation(libs.tv.material)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.coil.compose)
+    // QR code for the phone setup URL (pure Java, no network).
+    implementation(libs.zxing.core)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)

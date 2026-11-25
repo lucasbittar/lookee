@@ -95,6 +95,8 @@ data class MediaTitle(
     val rating: Double = 0.0,
     val posterUrl: String = "",
     val backdropUrl: String = "",
+    /** A video to grab a preview frame from, when there's no poster (Go decides). */
+    val previewPath: String = "",
     val addedAt: Long = 0,
     val updatedAt: Long = 0,
 )
@@ -118,8 +120,11 @@ data class MediaDetails(
     val rating: Double = 0.0,
     val posterUrl: String = "",
     val backdropUrl: String = "",
+    val previewPath: String = "",
     val addedAt: Long = 0,
     val updatedAt: Long = 0,
+    /** The screen this title shows on: "movies", "concerts", "series" or "tutorials". */
+    val section: String = "",
     val cast: List<CastMember> = emptyList(),
     val episodes: List<Episode> = emptyList(),
     val files: List<MediaFile> = emptyList(),
@@ -170,6 +175,79 @@ data class PathRef(val path: String = "")
 @Serializable
 data class SeedResult(val applied: Int = 0)
 
+/** One Continue Watching card. [key] is the file path (or stream key) to resume. */
+@Serializable
+data class ContinueItem(
+    val key: String = "",
+    val titleId: Long = 0,
+    val title: String = "",
+    val category: String = "",
+    val kind: String = "",
+    val year: Int = 0,
+    val overview: String = "",
+    val genres: List<String> = emptyList(),
+    val posterUrl: String = "",
+    val backdropUrl: String = "",
+    val season: Int = 0,
+    val episode: Int = 0,
+    val episodeName: String = "",
+    val stillUrl: String = "",
+    val positionMs: Long = 0,
+    val durationMs: Long = 0,
+)
+
+@Serializable
+data class HomeView(
+    val continueWatching: List<ContinueItem> = emptyList(),
+    val recentlyAdded: List<MediaTitle> = emptyList(),
+    val counts: Map<String, Int> = emptyMap(),
+)
+
+@Serializable
+data class EpisodeRef(
+    val key: String = "",
+    val season: Int = 0,
+    val episode: Int = 0,
+    val name: String = "",
+    val stillUrl: String = "",
+    val positionMs: Long = 0,
+    val durationMs: Long = 0,
+)
+
+/** A show on the Series screen: Go flattens the title's fields in, then adds progress. */
+@Serializable
+data class ShowProgress(
+    val id: Long = 0,
+    val category: String = "",
+    val status: String = "",
+    val tmdbId: Long = 0,
+    val kind: String = "",
+    val title: String = "",
+    val originalTitle: String = "",
+    val year: Int = 0,
+    val tagline: String = "",
+    val overview: String = "",
+    val releaseDate: String = "",
+    val runtime: Int = 0,
+    val genres: List<String> = emptyList(),
+    val rating: Double = 0.0,
+    val posterUrl: String = "",
+    val backdropUrl: String = "",
+    val previewPath: String = "",
+    val addedAt: Long = 0,
+    val updatedAt: Long = 0,
+    val next: EpisodeRef? = null,
+    val progressSeason: Int = 0,
+    val watched: Int = 0,
+    val total: Int = 0,
+)
+
+@Serializable
+data class SeriesView(
+    val inProgress: List<ShowProgress> = emptyList(),
+    val all: List<ShowProgress> = emptyList(),
+)
+
 @Serializable
 data class FolderEntry(
     val name: String = "",
@@ -178,6 +256,8 @@ data class FolderEntry(
     val size: Long = 0,
     val modTime: Long = 0,
     val hasSubtitle: Boolean = false,
+    val positionMs: Long = 0,
+    val durationMs: Long = 0,
 )
 
 @Serializable
@@ -233,6 +313,21 @@ data class TmdbResult(
     val posterUrl: String = "",
     val popularity: Double = 0.0,
     val voteCount: Int = 0,
+)
+
+/** A Discover result; [libraryTitleId] is set when the title is already on the drive. */
+@Serializable
+data class DiscoverItem(
+    val id: Long = 0,
+    val kind: String = "",
+    val title: String = "",
+    val originalTitle: String = "",
+    val year: Int = 0,
+    val overview: String = "",
+    val posterUrl: String = "",
+    val popularity: Double = 0.0,
+    val voteCount: Int = 0,
+    val libraryTitleId: Long = 0,
 )
 
 @Serializable

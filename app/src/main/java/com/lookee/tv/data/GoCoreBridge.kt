@@ -113,6 +113,13 @@ class GoCoreBridge(
     suspend fun media(category: String, offset: Int = 0, limit: Int = 200): List<MediaTitle> =
         get { Lookeecore.listMedia(category, offset.toLong(), limit.toLong()) }
 
+    /** "movies", "concerts" or "series", A–Z (concert films in the Movies folder count as concerts). */
+    suspend fun libraryView(view: String): List<MediaTitle> = get { Lookeecore.getLibraryView(view) }
+
+    suspend fun home(limit: Int = 20): HomeView = get { Lookeecore.getHome(limit.toLong()) }
+
+    suspend fun series(): SeriesView = get { Lookeecore.getSeries() }
+
     suspend fun recentlyAdded(limit: Int = 20): List<MediaTitle> = get { Lookeecore.getRecentlyAdded(limit.toLong()) }
 
     suspend fun details(titleId: Long): MediaDetails = get { Lookeecore.getMediaDetails(titleId) }
@@ -150,9 +157,9 @@ class GoCoreBridge(
 
     // ---- discover ----
 
-    suspend fun trending(kind: String): List<TmdbResult> = get { Lookeecore.getTrending(kind) }
+    suspend fun trending(kind: String): List<DiscoverItem> = get { Lookeecore.getTrending(kind) }
 
-    suspend fun searchTmdb(query: String, kind: String = ""): List<TmdbResult> = get { Lookeecore.searchTMDB(query, kind) }
+    suspend fun searchTmdb(query: String, kind: String = ""): List<DiscoverItem> = get { Lookeecore.searchTMDB(query, kind) }
 
     suspend fun searchTorrents(kind: String, tmdbId: Long, season: Int = 0, episode: Int = 0): TorrentSearch =
         get { Lookeecore.searchTorrents(kind, tmdbId, season.toLong(), episode.toLong()) }

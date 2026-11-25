@@ -460,7 +460,7 @@ func (c *cli) browse(args []string) error {
 	if len(args) != 1 {
 		return errors.New("usage: browse <dir>")
 	}
-	entries, err := c.e.Browse(args[0])
+	entries, err := c.e.Browse(c.ctx, args[0])
 	if err != nil {
 		return err
 	}

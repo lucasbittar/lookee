@@ -1,0 +1,69 @@
+{
+  "inProgress": [
+    {
+      "id": 7,
+      "category": "MOVIES",
+      "status": "matched",
+      "tmdbId": 949,
+      "kind": "movie",
+      "title": "Heat",
+      "originalTitle": "Heat",
+      "year": 1995,
+      "tagline": "A Los Angeles crime saga",
+      "overview": "Obsessive master thief Neil McCauley…",
+      "releaseDate": "1995-12-15",
+      "runtime": 170,
+      "genres": [
+        "Action",
+        "Crime",
+        "Drama"
+      ],
+      "rating": 7.9,
+      "posterUrl": "https://image.tmdb.org/t/p/w500/poster.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/backdrop.jpg",
+      "addedAt": 1764000000,
+      "updatedAt": 1764000100,
+      "next": {
+        "key": "/storage/emulated/0/Download/Movies/Heat (1995)/Heat.mkv",
+        "season": 1,
+        "episode": 3,
+        "name": "The Unquiet Dead",
+        "stillUrl": "https://image.tmdb.org/t/p/w300/still.jpg",
+        "positionMs": 1122000,
+        "durationMs": 2661000
+      },
+      "progressSeason": 1,
+      "watched": 2,
+      "total": 13
+    }
+  ],
+  "all": [
+    {
+      "id": 7,
+      "category": "MOVIES",
+      "status": "matched",
+      "tmdbId": 949,
+      "kind": "movie",
+      "title": "Heat",
+      "originalTitle": "Heat",
+      "year": 1995,
+      "tagline": "A Los Angeles crime saga",
+      "overview": "Obsessive master thief Neil McCauley…",
+      "releaseDate": "1995-12-15",
+      "runtime": 170,
+      "genres": [
+        "Action",
+        "Crime",
+        "Drama"
+      ],
+      "rating": 7.9,
+      "posterUrl": "https://image.tmdb.org/t/p/w500/poster.jpg",
+      "backdropUrl": "https://image.tmdb.org/t/p/w1280/backdrop.jpg",
+      "addedAt": 1764000000,
+      "updatedAt": 1764000100,
+      "progressSeason": 2,
+      "watched": 10,
+      "total": 10
+    }
+  ]
+}

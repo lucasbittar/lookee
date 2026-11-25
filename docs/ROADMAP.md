@@ -11,8 +11,8 @@ Each phase ends with **exit criteria** that can be checked with a command or on 
 | 0 | Toolchain & repo scaffolding | macOS | ✅ |
 | 1 | Go core foundation & CLI harness | macOS | ✅ |
 | 2 | Torrent streamer & subtitle client | macOS | ✅ |
-| 3 | gomobile binding & Android TV shell | macOS + emulator | 🟨 |
-| 4 | TV screens & USB storage | emulator + Mi Box | ⬜ |
+| 3 | gomobile binding & Android TV shell | macOS + emulator | ✅ |
+| 4 | TV screens & USB storage | emulator + Mi Box | 🟨 |
 | 5 | Player & subtitle hot-reload | Mi Box | ⬜ |
 | 6 | End-to-end build, CI & release | macOS + GitHub | ⬜ |
 
@@ -154,7 +154,7 @@ Implementation notes (2026-11-24):
 - [x] Gradle project: Kotlin DSL, version catalog, `minSdk 26`, `targetSdk 34`, `app/libs/lookeecore.aar` as a file dependency.
 - [x] Manifest: `LEANBACK_LAUNCHER` intent filter, banner, `android.software.leanback` required, touchscreen not required, `INTERNET`, storage permissions, and a network security config that allows cleartext to `127.0.0.1` only (needed for the loopback stream).
 - [x] `LookeeApp.kt` calls `InitEngine`; `GoCoreBridge.kt` wraps every call in `withContext(Dispatchers.IO)` and decodes with `kotlinx.serialization`.
-- [ ] **Design pass with the user (Decision 15)** before building screens: visual direction, type scale, color, motion, focus treatment, and mockups of Home, Details and the player OSD. *Colors, type, focus and components are agreed (`docs/DESIGN.md`); the Home, Details and OSD layout mockups are still to do, before Phase 4.*
+- [x] **Design pass with the user (Decision 15)** before building screens: visual direction, type scale, color, motion, focus treatment, and mockups of Home, Details and the player OSD. *Colors, type, focus and components are agreed (`docs/DESIGN.md`); the Home, Details and OSD layout mockups are still to do, before Phase 4.*
 - [x] Theme and core components built to that design (focusable card, buttons, rows, navigation), plus the navigation with seven destinations.
 - [x] `make serve-apk`: serve the debug APK on the LAN and print the URL to type into *Downloader* on the TV (Decision 12).
 - [x] Debug builds also bind `android/386`, because the Android 9 TV emulator image is 32-bit x86 (`make bind` does this; `make bind-release` is ARM-only).
@@ -172,7 +172,7 @@ Implementation notes (2026-11-24):
 
 - ✅ `make bind && ./gradlew assembleDebug` succeeds, and the Kotlin contract tests pass.
 - ✅ In the Android TV emulator and on the Mi Box: the app is registered with the TV launcher, opens, the navigation is fully usable with the D-pad, and the Settings → Diagnostics card shows the settings JSON returned by Go.
-- ⬜ The layout mockups (Home, Details, OSD) are agreed with the user before Phase 4 starts.
+- ✅ The layout mockups (Home, Details, OSD, every category, Discover) are agreed with the user before Phase 4 starts: see the [layouts canvas](https://claude.ai/artifact/VpFhyAz42B5QG4wgGs3Tai) and `docs/DESIGN.md`.
 
 ---
 
@@ -182,14 +182,26 @@ Implementation notes (2026-11-24):
 
 **Tasks**
 
-- [ ] Settings: storage permission flow, folder picker, category per folder, API keys, preferred subtitle languages, indexer URLs, Clear Stream Cache.
-- [ ] Settings → "Set up from your phone": calls `StartRemoteSetup`, shows the URL as a QR code plus the PIN, and refreshes the settings screen when the phone saves. Leaving the screen calls `StopRemoteSetup`. On-screen keyboard entry stays available as a fallback.
-- [ ] Home: Continue Watching, Recently Added, per-category rows, startup sync indicator driven by `ScanCallback`.
-- [ ] Movies / Series / Concerts: paged poster grids.
-- [ ] Details: backdrop, synopsis, cast row, season/episode list for series, Play / Resume, Fix Match dialog.
-- [ ] Tutorials: folder browser backed by `BrowseFolder`, no metadata.
-- [ ] Discover: trending rows, search, torrent list with quality and seeders, buffering overlay driven by `StreamCallback`.
-- [ ] Coil configured with the 150 MB disk cap.
+- [x] Settings: storage permission flow, folder picker, category per folder, Clear Stream Cache. API keys, subtitle languages and indexer URLs are set from the phone page.
+- [x] Settings → "Set up from your phone": calls `StartRemoteSetup`, shows the URL as a QR code plus the PIN, and refreshes the settings screen when the phone saves. Leaving the screen calls `StopRemoteSetup`. On-screen keyboard entry stays available as a fallback.
+- [x] Home: Continue Watching, Recently Added, per-category rows, startup sync indicator driven by `ScanCallback`.
+- [x] Movies / Series / Concerts: paged poster grids.
+- [x] Details: backdrop, synopsis, cast row, season/episode list for series, Play / Resume, Fix Match dialog.
+- [x] Tutorials: folder browser backed by `BrowseFolder`, no metadata.
+- [x] Discover: trending rows, search, torrent list with quality and seeders, buffering overlay driven by `StreamCallback`.
+- [x] Coil configured with the 150 MB disk cap.
+
+**Implementation notes (so far)**
+
+- **Built in Go, not Kotlin:** Home, Series "up next" and the library views are computed by the core (`GetHome`, `GetSeries`, `GetLibraryView`).
+  - "Next episode" follows the latest viewing: an unfinished episode is resumed, and after a finished one the next episode is offered.
+  - The Movies folder mixes films and concerts. A title counts as a concert film when every TMDB genre is Music, Documentary or TV Movie, and either Music is among them or the name says it's live ("Live", "Unplugged", "Tour", "Festival"…). *Almost Famous* (Drama, Music) stays a movie.
+  - Known misses: *History of the Eagles* (tagged only Documentary) and unmatched, unnamed shows like Marcus King's stay in Movies. Moving a title by hand is a possible follow-up.
+- **Every card has a picture.** Titles without TMDB artwork, and every Tutorials lesson, show a frame from the video. Go supplies `previewPath`; Android's `MediaMetadataRetriever` grabs a frame about 10% in (retrying at 30% and 50% if it's black) and caches it as a JPEG.
+- **D-pad scrolling:** Compose 1.7's TV default pivots a focused item to about 30% of its row, which clipped the first card. `MinimalScroll` scrolls only as far as needed, keeping a margin. Row padding lives inside rows, and screen headings are pinned above the scrolling content.
+- **Settings:** the storage permission, adding a folder (volume → folder → category), scan progress, Remove with a second-press confirmation, Clear stream cache, and a QR code for phone setup.
+- **Testing:** everything was checked on the emulator against a copy of the real index (82 titles, keys stripped), with sample progress and lessons made from *Sintel*'s trailer.
+- **Not done yet:** the run on the Mi Box with the drive attached (exit criteria 1–4).
 
 **Exit criteria**
 

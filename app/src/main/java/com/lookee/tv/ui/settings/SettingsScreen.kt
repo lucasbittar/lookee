@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
@@ -63,6 +64,12 @@ fun SettingsScreen() {
             }
         }
         item {
+            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                LibraryCard(Modifier.weight(1.2f))
+                StorageCard(Modifier.weight(1f))
+            }
+        }
+        item {
             DiagnosticsCard(state, onRefresh = vm::refresh)
         }
     }
@@ -84,15 +91,20 @@ private fun PhoneSetupCard(phone: PhoneSetup, onStart: () -> Unit, onStop: () ->
                 if (phone is PhoneSetup.Failed) Alert(phone.message, modifier = Modifier.padding(top = 12.dp))
             }
             is PhoneSetup.Open -> {
-                Text("On your phone, on the same Wi-Fi, open", style = MaterialTheme.typography.bodyMedium, color = LookeeColors.Muted)
-                Text(
-                    phone.setup.url,
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = LookeeColors.Accent,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
-                )
-                Text("and enter this PIN", style = MaterialTheme.typography.bodyMedium, color = LookeeColors.Muted)
-                PinDisplay(phone.setup.pin, modifier = Modifier.padding(top = 10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Top) {
+                    QrCode(phone.setup.url, Modifier.size(132.dp))
+                    Column {
+                        Text("Scan with your phone, or open", style = MaterialTheme.typography.bodyMedium, color = LookeeColors.Muted)
+                        Text(
+                            phone.setup.url,
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = LookeeColors.Accent,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+                        )
+                        Text("on the same Wi-Fi, then enter this PIN", style = MaterialTheme.typography.bodyMedium, color = LookeeColors.Muted)
+                    }
+                }
+                PinDisplay(phone.setup.pin, modifier = Modifier.padding(top = 12.dp))
             }
             PhoneSetup.Saved -> {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {

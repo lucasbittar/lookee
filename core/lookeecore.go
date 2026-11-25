@@ -304,9 +304,34 @@ func ListMedia(category string, offset, limit int) (string, error) {
 	})
 }
 
+// GetLibraryView lists a screen's titles A–Z: "movies" (films, without concert films),
+// "concerts" (the Concerts folder plus concert films from Movies: TMDB genres only Music
+// and Documentary) or "series".
+func GetLibraryView(view string) (string, error) {
+	return call(func(ctx context.Context, e *engine.Engine) (any, error) {
+		ts, err := e.LibraryView(ctx, view)
+		if err != nil && ts == nil {
+			return nil, badRequest("%v", err)
+		}
+		return ts, err
+	})
+}
+
 // GetRecentlyAdded returns the newest titles across the library.
 func GetRecentlyAdded(limit int) (string, error) {
 	return call(func(ctx context.Context, e *engine.Engine) (any, error) { return e.RecentlyAdded(ctx, limit) })
+}
+
+// GetHome returns the Home screen in one call: Continue Watching (unfinished items, newest
+// first, with episode names and stills), Recently Added, and title counts per category.
+func GetHome(limit int) (string, error) {
+	return call(func(ctx context.Context, e *engine.Engine) (any, error) { return e.Home(ctx, limit) })
+}
+
+// GetSeries returns every show with its next episode and season progress; shows being
+// watched are also listed in "inProgress", most recent first.
+func GetSeries() (string, error) {
+	return call(func(ctx context.Context, e *engine.Engine) (any, error) { return e.Series(ctx) })
 }
 
 // GetMediaDetails returns a title with cast, episodes and files (with saved progress).
@@ -345,7 +370,7 @@ type TitleRef struct {
 
 // BrowseFolder lists a folder for the Tutorials browser.
 func BrowseFolder(path string) (string, error) {
-	return call(func(_ context.Context, e *engine.Engine) (any, error) { return nonNil(e.Browse(path)) })
+	return call(func(ctx context.Context, e *engine.Engine) (any, error) { return e.Browse(ctx, path) })
 }
 
 // ---- progress ----
@@ -405,13 +430,14 @@ type PathRef struct {
 // ---- discover ----
 
 // GetTrending returns this week's trending titles on TMDB; kind is "movie" or "tv".
+// Titles already on the drive carry "libraryTitleId".
 func GetTrending(kind string) (string, error) {
-	return netCall(func(ctx context.Context, e *engine.Engine) (any, error) { return e.Trending(ctx, kind) })
+	return netCall(func(ctx context.Context, e *engine.Engine) (any, error) { return e.DiscoverTrending(ctx, kind) })
 }
 
 // SearchTMDB searches TMDB by text; kind is "movie", "tv" or "" for both.
 func SearchTMDB(query, kind string) (string, error) {
-	return netCall(func(ctx context.Context, e *engine.Engine) (any, error) { return e.SearchTMDB(ctx, query, kind) })
+	return netCall(func(ctx context.Context, e *engine.Engine) (any, error) { return e.DiscoverSearch(ctx, query, kind) })
 }
 
 // SearchTorrents finds torrents for a TMDB title; season/episode apply to TV.

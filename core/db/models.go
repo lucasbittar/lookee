@@ -82,6 +82,9 @@ type Title struct {
 	Rating      float64     `json:"rating,omitempty"`
 	PosterURL   string      `json:"posterUrl,omitempty"`
 	BackdropURL string      `json:"backdropUrl,omitempty"`
+	// PreviewPath is a video file to grab a preview frame from, set by the engine when
+	// the title has no poster (unmatched titles, personal videos). Not stored.
+	PreviewPath string `json:"previewPath,omitempty"`
 	AddedAt     int64       `json:"addedAt"`
 	UpdatedAt   int64       `json:"updatedAt"`
 }

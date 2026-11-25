@@ -48,3 +48,37 @@ val LookeeTypography = Typography(
     // Section labels: small uppercase with wide tracking (the page's `.card h2`).
     labelSmall = style(13, FontWeight.SemiBold, 0.08),
 )
+
+// Category faces (docs/DESIGN.md): Movies' title in Fraunces, artist names in Bebas Neue,
+// Tutorials' numbers and Discover's stats in JetBrains Mono. Fraunces and JetBrains Mono are
+// variable fonts; Android 8+ picks the weight from the variation settings.
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+val Fraunces = FontFamily(
+    Font(
+        R.font.fraunces_variable,
+        weight = FontWeight.Bold,
+        variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(
+            androidx.compose.ui.text.font.FontVariation.weight(700),
+        ),
+    ),
+)
+
+val BebasNeue = FontFamily(Font(R.font.bebas_neue_regular))
+
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+val JetBrainsMono = FontFamily(
+    Font(
+        R.font.jetbrains_mono_variable,
+        weight = FontWeight.Medium,
+        variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(
+            androidx.compose.ui.text.font.FontVariation.weight(500),
+        ),
+    ),
+    Font(
+        R.font.jetbrains_mono_variable,
+        weight = FontWeight.Bold,
+        variationSettings = androidx.compose.ui.text.font.FontVariation.Settings(
+            androidx.compose.ui.text.font.FontVariation.weight(700),
+        ),
+    ),
+)

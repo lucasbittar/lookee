@@ -21,6 +21,7 @@
   "backdropUrl": "https://image.tmdb.org/t/p/w1280/backdrop.jpg",
   "addedAt": 1764000000,
   "updatedAt": 1764000100,
+  "section": "movies",
   "cast": [
     {
       "order": 0,

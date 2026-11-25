@@ -716,3 +716,38 @@ func (s *Store) RecentProgress(ctx context.Context, limit int) ([]Progress, erro
 	}
 	return out, rows.Err()
 }
+
+// FileByPath returns the indexed file at path, or ErrNotFound.
+func (s *Store) FileByPath(ctx context.Context, path string) (File, error) {
+	var f File
+	err := s.sql.QueryRowContext(ctx, `
+		SELECT id, root_id, path, kind, size, mtime, title_id, season, episode, episode_end, added_at
+		FROM media_files WHERE path = ?`, path).
+		Scan(&f.ID, &f.RootID, &f.Path, &f.Kind, &f.Size, &f.MTime, &f.TitleID, &f.Season, &f.Episode, &f.EpisodeEnd, &f.AddedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return f, ErrNotFound
+	}
+	return f, err
+}
+
+// CountByCategory returns how many titles each category holds.
+func (s *Store) CountByCategory(ctx context.Context) (map[Category]int, error) {
+	rows, err := s.sql.QueryContext(ctx, `SELECT category, COUNT(*) FROM titles GROUP BY category`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[Category]int{}
+	for rows.Next() {
+		var c string
+		var n int
+		if err := rows.Scan(&c, &n); err != nil {
+			return nil, err
+		}
+		out[Category(c)] = n
+	}
+	return out, rows.Err()
+}
+
+// DB exposes the connection for tests in other packages that need to adjust timestamps.
+func (s *Store) DB() *sql.DB { return s.sql }

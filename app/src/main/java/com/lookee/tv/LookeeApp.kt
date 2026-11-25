@@ -3,18 +3,26 @@ package com.lookee.tv
 import android.app.Application
 import android.content.Context
 import com.lookee.core.lookeecore.Lookeecore
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
 import com.lookee.tv.data.GoCoreBridge
+import com.lookee.tv.data.LibrarySync
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
-class LookeeApp : Application() {
+class LookeeApp : Application(), ImageLoaderFactory {
     /** Lives as long as the process; for work that must outlast a screen. */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     lateinit var core: GoCoreBridge
+        private set
+
+    lateinit var library: LibrarySync
         private set
 
     override fun onCreate() {
@@ -30,6 +38,7 @@ class LookeeApp : Application() {
             )
         }
         core = GoCoreBridge(ready)
+        library = LibrarySync(core, appScope)
         appScope.launch { seedPrivateDefaults() }
     }
 
@@ -43,6 +52,13 @@ class LookeeApp : Application() {
             .getOrNull() ?: return
         runCatching { core.seedDefaults(json) }
     }
+
+    /** Posters and backdrops: 150 MB on disk (CLAUDE.md), a small memory cache for a 2 GB box. */
+    override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
+        .memoryCache { MemoryCache.Builder(this).maxSizePercent(0.15).build() }
+        .diskCache { DiskCache.Builder().directory(cacheDir.resolve("images")).maxSizeBytes(150L * 1024 * 1024).build() }
+        .crossfade(180)
+        .build()
 
     companion object {
         private const val DEFAULTS_ASSET = "sources.local.json"

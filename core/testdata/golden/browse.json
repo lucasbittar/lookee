@@ -11,6 +11,8 @@
     "isDir": false,
     "size": 1000000,
     "modTime": 1700000000,
-    "hasSubtitle": true
+    "hasSubtitle": true,
+    "positionMs": 30000,
+    "durationMs": 600000
   }
 ]
