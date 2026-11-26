@@ -34,16 +34,20 @@
 
 ## Surface
 
+Every function returns a JSON string (or nothing) and an error whose message starts with a code (`not_found`, `no_tmdb_key`, `no_subtitle_key`, …; `GoCoreBridge.Codes` in Kotlin). `lookeecore.go` documents each one.
+
 | Area | Functions |
 |---|---|
 | Lifecycle | `initEngine(filesDir, cacheDir, externalDir)`, `shutdown`, `coreVersion`, `getLogs(n)`, `logEvent(level, message)` |
-| Settings | `getSettings`, `setSetting(key, value)`, `startRemoteSetup(host, cb)`, `stopRemoteSetup` |
+| Settings | `getSettings`, `setSetting(key, value)`, `seedDefaultSettings(defaultsJson)`, `startRemoteSetup(host, cb)`, `stopRemoteSetup` |
 | Library roots | `listRoots`, `addRoot(path, category)`, `removeRoot(id)`, `listStorageVolumes` |
 | Scan | `startScan(cb)`, `cancelScan` |
-| Library | `listMedia(category, offset, limit)`, `getRecentlyAdded(limit)`, `getMediaDetails(id)`, `searchMatchCandidates(id, query, kind)`, `rebindTMDB(id, kind, tmdbId)`, `searchAndRebindTMDB(id, query)`, `browseFolder(path)`, `searchLessons(query)` |
+| Library | `getHome(limit)`, `listMedia(category, offset, limit)`, `getLibraryView(view)`, `getSeries`, `getRecentlyAdded(limit)`, `getMediaDetails(id)`, `searchMatchCandidates(id, query, kind)`, `rebindTMDB(id, kind, tmdbId)`, `searchAndRebindTMDB(id, query)`, `browseFolder(path)`, `searchLessons(query)` |
 | Progress | `saveProgress(key, titleId, positionMs, durationMs)`, `getContinueWatching(limit)` |
-| Subtitles | `findSidecarSubtitles(videoPath)`, `searchSubtitles(requestJson)`, `downloadSubtitle(fileId)`, `shiftSubtitle(path, offsetMs)` |
+| Subtitles | `findSidecarSubtitles(videoPath)`, `searchSubtitles(requestJson)`, `downloadSubtitle(fileId)`, `getSubtitleCues(path)`, `shiftSubtitle(path, offsetMs)` |
 | Discover | `getTrending(kind)`, `searchTMDB(query, kind)`, `searchTorrents(kind, tmdbId, season, episode)`, `searchTorrentsText(kind, text)` |
-| Streaming | `startStream(source, fileIndex, cb)`, `getStreamStats`, `stopStream`, `clearStreamCache`, `playDisc(path, kind)`, `stopDisc()` |
+| Streaming & discs | `startStream(source, fileIndex, cb)`, `getStreamStats`, `stopStream`, `clearStreamCache`, `playDisc(path, kind)`, `stopDisc` |
+
+Callbacks Kotlin implements: `ScanCallback.onProgress(json)`, `StreamCallback.onStats(json)` (about once a second), `RemoteCallback.onClosed(saved)`.
 
 `externalDir` is `Context.getExternalFilesDir(null)`. On the Mi Box that directory is on the 1 TB drive, so torrent pieces never fill the internal flash (Decision 2).

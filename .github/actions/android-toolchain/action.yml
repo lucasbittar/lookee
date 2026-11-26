@@ -1,0 +1,23 @@
+# JDK 17, Go, the NDK the Makefile expects, and gomobile at the version in core/go.mod.
+name: Android toolchain
+description: Everything make bind and Gradle need on an Ubuntu runner
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: "17"
+        cache: gradle
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: core/go.mod
+        cache-dependency-path: core/go.sum
+    - name: NDK, build-tools, gomobile
+      shell: bash
+      run: |
+        ndk=$(sed -n 's/^NDK_VERSION *?= *//p' Makefile)
+        yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" "build-tools;35.0.0" "platforms;android-35" > /dev/null
+        mobile=$(cd core && go list -m -f '{{.Version}}' golang.org/x/mobile)
+        go install "golang.org/x/mobile/cmd/gomobile@$mobile" "golang.org/x/mobile/cmd/gobind@$mobile"
+        gomobile init

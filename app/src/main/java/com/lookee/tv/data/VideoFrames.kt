@@ -125,7 +125,7 @@ object VideoFrames {
         val r = MediaMetadataRetriever()
         return try {
             r.setDataSource(path)
-            r.getScaledFrameAtTime(positionMs * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 480, 270)
+            r.scaledFrame(positionMs * 1000)
                 ?.takeUnless { isDark(it).also { dark -> if (dark) it.recycle() } }
         } catch (e: Exception) {
             null
@@ -145,7 +145,7 @@ object VideoFrames {
             var best: Bitmap? = null
             for (p in points) {
                 val atUs = maxOf(1_000L, (durationMs * p).toLong()) * 1000
-                val frame = r.getScaledFrameAtTime(atUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 480, 270) ?: continue
+                val frame = r.scaledFrame(atUs) ?: continue
                 if (!isDark(frame)) {
                     best?.recycle()
                     return frame
@@ -173,6 +173,21 @@ object VideoFrames {
         }
         return n > 0 && sum / n < 20
     }
+
+    /** A frame near [atUs], at most 480×270. Android 8.0 lacks the scaling call: scale it here. */
+    private fun MediaMetadataRetriever.scaledFrame(atUs: Long): Bitmap? =
+        if (android.os.Build.VERSION.SDK_INT >= 27) {
+            getScaledFrameAtTime(atUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 480, 270)
+        } else {
+            getFrameAtTime(atUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)?.let { full ->
+                val k = minOf(480f / full.width, 270f / full.height, 1f)
+                if (k >= 1f) {
+                    full
+                } else {
+                    Bitmap.createScaledBitmap(full, (full.width * k).toInt(), (full.height * k).toInt(), true).also { full.recycle() }
+                }
+            }
+        }
 
     private fun sha1(s: String): String =
         MessageDigest.getInstance("SHA-1").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }

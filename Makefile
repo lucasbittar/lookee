@@ -6,11 +6,14 @@ ANDROID_HOME     ?= $(HOME)/Library/Android/sdk
 NDK_VERSION      ?= 28.2.13676358
 ANDROID_NDK_HOME ?= $(ANDROID_HOME)/ndk/$(NDK_VERSION)
 JAVA_HOME        ?= $(shell /usr/libexec/java_home -v 17 2>/dev/null)
-GOBIN            ?= $(shell go env GOPATH)/bin
+# Release signing (docs/RELEASING.md): the keystore lives outside the repo; its password comes
+# from LOOKEE_KEYSTORE_PASSWORD or, on the Mac, the login Keychain (service "lookee-release").
+LOOKEE_KEYSTORE  ?= $(HOME)/.lookee/lookee-release.jks
+GOBIN           ?= $(shell go env GOPATH)/bin
 # Built from source with the local Go toolchain, so it always understands the Go version in use.
 GOLANGCI_LINT    ?= go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 
-export ANDROID_HOME ANDROID_NDK_HOME JAVA_HOME
+export ANDROID_HOME ANDROID_NDK_HOME JAVA_HOME LOOKEE_KEYSTORE
 export PATH := $(GOBIN):$(ANDROID_HOME)/platform-tools:$(PATH)
 
 # Full paths: GNU Make 3.81 (macOS default) ignores an exported PATH when it runs simple commands.
@@ -28,9 +31,15 @@ MIBOX_IP     ?=
 # SQLite piece store bundles a second SQLite that clashes with mattn/go-sqlite3.
 GO_TAGS ?= purego_utp,nosqlite
 
-.PHONY: all test lint cli cli-android push-cli serve-apk bind bind-release apk apk-release install install-release devices clean doctor
+.PHONY: all app-check release test lint cli cli-android push-cli serve-apk bind bind-release apk apk-release install install-release devices clean doctor
 
-all: test bind apk
+## all: the whole pipeline from a clean clone: Go tests and lint, the Android library,
+## Android lint, Kotlin unit tests and the debug APK
+all: test lint bind app-check
+
+## app-check: Android lint, Kotlin unit tests and the debug APK (needs the library: make bind)
+app-check: $(AAR)
+	./gradlew lintDebug testDebugUnitTest assembleDebug
 
 ## test: run Go unit tests
 test:
@@ -84,16 +93,24 @@ ifneq ($(MIBOX_IP),)
 endif
 	$(ADB) install -r $(APK)
 
-## apk-release: build the optimised APK (R8, not debuggable): starts in ~1.5 s on the Mi Box vs ~8.4 s for debug
-apk-release: $(AAR)
+## apk-release: build the optimised per-ABI APKs (R8, not debuggable): starts in ~1.5 s on the Mi Box vs ~8.4 s for debug
+apk-release: bind-release
 	./gradlew assembleRelease
+
+## release: signed release APKs, app/build/outputs/apk/release/app-<abi>-release.apk
+release:
+	@test -f "$(LOOKEE_KEYSTORE)" || { echo "No keystore at $(LOOKEE_KEYSTORE): see docs/RELEASING.md"; exit 1; }
+	@pw="$$LOOKEE_KEYSTORE_PASSWORD"; \
+	if [ -z "$$pw" ]; then pw=`security find-generic-password -s lookee-release -w 2>/dev/null`; fi; \
+	if [ -z "$$pw" ]; then echo "Set LOOKEE_KEYSTORE_PASSWORD or add it to the Keychain: see docs/RELEASING.md"; exit 1; fi; \
+	LOOKEE_KEYSTORE_PASSWORD="$$pw" $(MAKE) apk-release
 
 ## install-release: install the release APK on the Mi Box and precompile it (~0.9 s starts)
 install-release:
 ifneq ($(MIBOX_IP),)
 	$(ADB) connect $(MIBOX_IP):5555
 endif
-	$(ADB) install -r app/build/outputs/apk/release/app-release.apk
+	$(ADB) install -r app/build/outputs/apk/release/app-armeabi-v7a-release.apk
 	$(ADB) shell cmd package compile -m speed-profile -f com.lookee.tv
 
 ## serve-apk: serve the debug APK on the LAN for the TV's Downloader app (no ADB needed, Decision 12)

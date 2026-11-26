@@ -21,9 +21,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -151,8 +151,8 @@ fun PreviewImage(url: String, videoPath: String, modifier: Modifier = Modifier, 
         return
     }
     val context = LocalContext.current
-    val frame by produceState<java.io.File?>(null, videoPath) { value = VideoFrames.frame(context, videoPath) }
-    val file = frame
+    var file by remember(videoPath) { mutableStateOf<java.io.File?>(null) }
+    LaunchedEffect(videoPath) { file = VideoFrames.frame(context, videoPath) }
     if (file == null) {
         Box(modifier.background(LookeeColors.Surface2))
     } else {
@@ -175,11 +175,11 @@ fun PreviewImage(url: String, videoPath: String, modifier: Modifier = Modifier, 
 fun ResumeImage(key: String, positionMs: Long, fallbackUrl: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var checked by remember(key, positionMs) { mutableStateOf(false) }
-    val frame by produceState<java.io.File?>(null, key, positionMs) {
-        value = VideoFrames.resumeFrame(context, key, positionMs)
+    var file by remember(key, positionMs) { mutableStateOf<java.io.File?>(null) }
+    LaunchedEffect(key, positionMs) {
+        file = VideoFrames.resumeFrame(context, key, positionMs)
         checked = true
     }
-    val file = frame
     when {
         file != null -> AsyncImage(
             model = file,

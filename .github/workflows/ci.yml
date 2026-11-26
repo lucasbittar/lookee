@@ -1,0 +1,49 @@
+# Every push and pull request: the Go core's tests and lint, then the Android library,
+# Android lint, Kotlin unit tests and a debug APK (kept for a week as an artifact).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Go core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+      - run: make test
+      - run: make lint
+
+  app:
+    name: Android app
+    runs-on: ubuntu-latest
+    needs: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/android-toolchain
+      - run: make bind
+      - run: make app-check
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.html
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lookee-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
