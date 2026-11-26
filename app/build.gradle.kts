@@ -25,6 +25,7 @@ val versionCodeFromTag: Int = versionNameFromTag.split('.').mapNotNull { it.toIn
 val releaseKeystore: String? = System.getenv("LOOKEE_KEYSTORE")
 val releaseKeystorePassword: String? = System.getenv("LOOKEE_KEYSTORE_PASSWORD")
 val releaseKeyAlias: String = System.getenv("LOOKEE_KEY_ALIAS") ?: "androiddebugkey"
+val releaseTasks = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
 val canSignRelease = releaseKeystore != null && releaseKeystorePassword != null && file(releaseKeystore).isFile
 
 android {
@@ -56,7 +57,7 @@ android {
     // builds keep one APK with x86 for the emulator.
     splits {
         abi {
-            isEnable = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
+            isEnable = releaseTasks
             reset()
             include("armeabi-v7a", "arm64-v8a")
             isUniversalApk = false
@@ -72,7 +73,9 @@ android {
 
     buildTypes {
         debug {
-            // One APK with every ABI the libraries carry: x86 runs the Android 9 TV emulator.
+            // One APK: ARM for the box, x86 for the Android 9 TV emulator (no x86_64). Only
+            // when no release task runs, since ABI filters and release splits can't coexist.
+            if (!releaseTasks) ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86") }
         }
         release {
             isMinifyEnabled = true
