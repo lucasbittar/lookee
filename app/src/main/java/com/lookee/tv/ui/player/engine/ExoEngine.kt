@@ -52,6 +52,7 @@ class ExoEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
     private var described = false
     private var subtitleFraction = SubtitleSize.Medium.fraction
     private var view: PlayerView? = null
+    override val videoView: android.view.View? get() = view
 
     private val player: ExoPlayer = ExoPlayer.Builder(context)
         .setRenderersFactory(

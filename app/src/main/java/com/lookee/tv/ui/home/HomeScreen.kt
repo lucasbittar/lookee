@@ -22,8 +22,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -71,6 +73,8 @@ import kotlinx.coroutines.launch
 
 /** What the banner shows: whichever card has focus. */
 data class Hero(
+    /** Which card it came from, so a reload can refresh it ("cw:<key>", "title:<id>"). */
+    val id: String,
     val title: String,
     val kicker: String,
     val meta: String,
@@ -97,7 +101,13 @@ class HomeViewModel(private val core: GoCoreBridge, library: LibrarySync, privat
         _state.value = try {
             val home = core.home(20)
             val first = home.continueWatching.firstOrNull()?.let(::heroOf) ?: home.recentlyAdded.firstOrNull()?.let(::heroOf)
-            _state.value.copy(loading = false, home = home, hero = _state.value.hero ?: first, error = null)
+            // The focused card's banner is rebuilt from the new data (time left after watching).
+            val hero = _state.value.hero?.let { old ->
+                home.continueWatching.firstOrNull { "cw:${it.key}" == old.id }?.let(::heroOf)
+                    ?: home.recentlyAdded.firstOrNull { "title:${it.id}" == old.id }?.let(::heroOf)
+                    ?: old
+            }
+            _state.value.copy(loading = false, home = home, hero = hero ?: first, error = null)
         } catch (e: Exception) {
             _state.value.copy(loading = false, error = e.message)
         }
@@ -118,6 +128,7 @@ fun categoryLabel(category: String): String = when (category) {
 }
 
 fun heroOf(item: ContinueItem) = Hero(
+    id = "cw:${item.key}",
     title = item.title,
     kicker = "Continue watching",
     meta = listOfNotNull(
@@ -131,6 +142,7 @@ fun heroOf(item: ContinueItem) = Hero(
 )
 
 fun heroOf(t: MediaTitle) = Hero(
+    id = "title:${t.id}",
     title = t.title,
     kicker = "Recently added",
     meta = listOfNotNull(
@@ -186,9 +198,20 @@ fun HomeScreen() {
                 ) {
                     if (home.continueWatching.isNotEmpty()) {
                         item("continue") {
+                            // What was just watched moves to the front. A keyed row would keep its
+                            // scroll on the old first card and leave the moved one off screen,
+                            // dropping focus to the row below; scrolling home in the same frame
+                            // keeps the card on screen and focused.
+                            val continueRow = rememberLazyListState()
+                            val first = home.continueWatching.first().key
+                            val lastFirst = remember { arrayOf(first) }
+                            if (lastFirst[0] != first) {
+                                lastFirst[0] = first
+                                continueRow.requestScrollToItem(0)
+                            }
                             Column {
                                 RowTitle("Continue watching", inset = ScreenInset)
-                                LazyRow(Modifier.focusRestorer(), horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = RowPadding) {
+                                LazyRow(Modifier.focusRestorer(), state = continueRow, horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = RowPadding) {
                                     items(home.continueWatching, key = { it.key }) { item ->
                                         StillCard(
                                             title = item.title,
@@ -212,6 +235,7 @@ fun HomeScreen() {
                                             },
                                             onFocused = { vm.focus(heroOf(item)) },
                                             videoPath = item.key,
+                                            resumeAtMs = item.positionMs,
                                         )
                                     }
                                 }

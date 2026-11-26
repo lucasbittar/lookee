@@ -339,16 +339,24 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
         libVlc.release()
     }
 
+    private var layout: VLCVideoLayout? = null
+    override val videoView: android.view.View? get() = layout
+
     @Composable
     override fun VideoSurface(modifier: Modifier) {
         AndroidView(
-            factory = { ctx -> VLCVideoLayout(ctx).apply { keepScreenOn = true } },
+            factory = { ctx -> VLCVideoLayout(ctx).apply { keepScreenOn = true }.also { layout = it } },
             modifier = modifier,
             update = { layout ->
                 if (!player.vlcVout.areViewsAttached()) player.attachViews(layout, null, true, false)
             },
         )
-        DisposableEffect(Unit) { onDispose { player.detachViews() } }
+        DisposableEffect(Unit) {
+            onDispose {
+                layout = null
+                player.detachViews()
+            }
+        }
     }
 }
 

@@ -70,6 +70,8 @@ import com.lookee.tv.ui.library.MoviesScreen
 import com.lookee.tv.ui.library.SeriesScreen
 import com.lookee.tv.ui.library.TutorialsScreen
 import com.lookee.tv.ui.navigation.Destination
+import com.lookee.tv.ui.navigation.FocusMemory
+import com.lookee.tv.ui.navigation.LocalFocusMemory
 import com.lookee.tv.ui.navigation.LocalNavigator
 import com.lookee.tv.ui.navigation.FollowFocusScroll
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -131,9 +133,10 @@ fun LookeeRoot() {
         }
     }
     // Back on the tabs after a pop: focus returns to the card that opened the screen.
+    val focusMemory = remember { FocusMemory() }
     val pushed = navigator.stack.lastOrNull()
     LaunchedEffect(pushed == null) {
-        if (pushed == null) runCatching { tabsRequester.requestFocus() }
+        if (pushed == null && !focusMemory.restore()) runCatching { tabsRequester.requestFocus() }
     }
     // Opening a screen moves focus into it. Without this, focus stayed on the hidden button
     // that opened it, and OK kept pressing that button (Add folder looked stuck).
@@ -185,14 +188,16 @@ fun LookeeRoot() {
                             .fillMaxSize()
                             .onFocusChanged { contentHasFocus = it.hasFocus },
                     ) { dest ->
-                        when (dest) {
-                            Destination.Home -> HomeScreen()
-                            Destination.Movies -> MoviesScreen()
-                            Destination.Series -> SeriesScreen()
-                            Destination.Concerts -> ConcertsScreen()
-                            Destination.Tutorials -> TutorialsScreen()
-                            Destination.Discover -> DiscoverScreen()
-                            Destination.Settings -> SettingsScreen()
+                        CompositionLocalProvider(LocalFocusMemory provides focusMemory) {
+                            when (dest) {
+                                Destination.Home -> HomeScreen()
+                                Destination.Movies -> MoviesScreen()
+                                Destination.Series -> SeriesScreen()
+                                Destination.Concerts -> ConcertsScreen()
+                                Destination.Tutorials -> TutorialsScreen()
+                                Destination.Discover -> DiscoverScreen()
+                                Destination.Settings -> SettingsScreen()
+                            }
                         }
                     }
                     TopNav(

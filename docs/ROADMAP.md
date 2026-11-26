@@ -244,6 +244,8 @@ Implementation notes (2026-11-24):
 - [x] VLC seeks wait 400 ms for the presses to stop and go to the nearest keyframe: a burst of seeks while holding fast-forward overloaded the box.
 - [x] Continue Watching leaves out Discover's torrent streams (their address dies with the stream).
 - [x] Settings scrolls only to reveal what focus lands on (`RevealFocusScroll`): moving from the tab into the page no longer scrolls down and jumps back.
+- [x] Continue Watching cards show a frame from where the viewer stopped, not the artwork: the player copies its video surface (`PixelCopy`, either engine, discs included) every 20 s, on pause and on the way out, and saves it with the position; letterbox bars are trimmed. Entries from before fall back to a frame decoded at the saved position (plain files), then the artwork.
+- [x] Closing a pushed screen (player, Details) puts focus back on the card that opened it (`FocusMemory`); before, the fallback search often landed a row lower. The watched card moves to the front of Continue Watching and keeps focus.
 - [x] **Fixed: scans could fail with "disk I/O error: read-only file system".** SQLite writes temp files (big deletes, sorts) to the current directory when no temp dir is set, and an app's is `/`. The core now sets `SQLITE_TMPDIR` to its cache. Pruning ~70 titles at once triggered it. Every scan now logs "scan finished"/"scan failed".
 
 **Implementation notes**

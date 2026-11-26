@@ -34,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -72,6 +73,7 @@ import androidx.tv.material3.Text
 import com.lookee.tv.LookeeApp
 import com.lookee.tv.data.Codes
 import com.lookee.tv.data.LookeeException
+import com.lookee.tv.data.VideoFrames
 import com.lookee.tv.ui.components.LookeeButton
 import com.lookee.tv.ui.components.clock
 import com.lookee.tv.ui.navigation.LocalNavigator
@@ -84,6 +86,7 @@ import com.lookee.tv.ui.player.engine.Source
 import com.lookee.tv.ui.player.engine.SubtitleSize
 import com.lookee.tv.ui.player.engine.VlcEngine
 import com.lookee.tv.ui.theme.LookeeColors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
@@ -97,6 +100,7 @@ private val GlassLine = Color(0xFFEEF0F3).copy(alpha = 0.18f)
 
 private const val OSD_HIDE_MS = 4_000L
 private const val SAVE_EVERY_MS = 5_000L
+private const val GRAB_EVERY_MS = 20_000L
 private const val SEEK_MS = 10_000L
 
 private enum class Panel { Subtitles, Audio }
@@ -104,7 +108,10 @@ private enum class Panel { Subtitles, Audio }
 private enum class OsdFocus { Play, Bar }
 
 /** An engine playing a source. A new session replaces the old one (next item, VLC fallback). */
-private class Session(val engine: PlaybackEngine, val source: Source, val item: PlayItem)
+private class Session(val engine: PlaybackEngine, val source: Source, val item: PlayItem) {
+    /** The latest picture grabbed from the video, for the Continue Watching card. */
+    @Volatile var frame: android.graphics.Bitmap? = null
+}
 
 /**
  * The player (DESIGN.md mockup "Player controls"), drawn the same over either engine
@@ -129,7 +136,8 @@ fun PlayerScreen(item: PlayItem) {
     val noState = remember { MutableStateFlow(EngineState()) }
     val ui by (session?.engine?.state ?: noState).collectAsState()
 
-    fun save(s: Session? = session, finished: Boolean = false): Job? {
+    /** Saves the position; [leaving] also stores the last grabbed frame for Continue Watching. */
+    fun save(s: Session? = session, finished: Boolean = false, leaving: Boolean = false): Job? {
         if (s == null) return null
         val st = s.engine.state.value
         if (st.durationMs <= 0) return null
@@ -137,7 +145,19 @@ fun PlayerScreen(item: PlayItem) {
         if (s.source.discMenu && (st.inMenu || st.durationMs < 20 * 60_000)) return null
         val position = if (finished) st.durationMs else st.positionMs
         if (position <= 0) return null
-        return app.appScope.launch { runCatching { app.core.saveProgress(s.item.path, s.item.titleId, position, st.durationMs) } }
+        val frame = s.frame.takeIf { leaving && !finished && !s.item.stream }
+        return app.appScope.launch(Dispatchers.IO) {
+            runCatching { app.core.saveProgress(s.item.path, s.item.titleId, position, st.durationMs) }
+            if (frame != null) runCatching { VideoFrames.saveResume(context, s.item.path, position, frame) }
+        }
+    }
+
+    // A frame every so often while playing, on pause and on the way out (see FrameGrab).
+    suspend fun grab(s: Session? = session) {
+        if (s == null) return
+        val st = s.engine.state.value
+        if (st.inMenu || st.durationMs <= 0 || st.error != null) return
+        FrameGrab.capture(s.engine.videoView)?.let { s.frame = it }
     }
 
     fun start(target: PlayItem, source: Source, vlc: Boolean, startMs: Long) {
@@ -185,7 +205,7 @@ fun PlayerScreen(item: PlayItem) {
     DisposableEffect(s) {
         onDispose {
             if (s != null) {
-                if (s !== session) save(s) // replaced (next episode, engine switch); leaving saves below
+                if (s !== session) save(s, leaving = true) // replaced (next episode, engine switch); leaving saves below
                 s.engine.release()
             }
         }
@@ -194,7 +214,7 @@ fun PlayerScreen(item: PlayItem) {
     // position is read while the engine is still alive.
     DisposableEffect(Unit) {
         onDispose {
-            val saved = save()
+            val saved = save(leaving = true)
             app.appScope.launch {
                 saved?.join()
                 app.library.changed() // only now: Continue Watching and progress bars reload with it
@@ -222,10 +242,16 @@ fun PlayerScreen(item: PlayItem) {
     // Position and menus four times a second; a save every few seconds while playing.
     LaunchedEffect(Unit) {
         var sinceSave = 0L
+        var sinceGrab = 0L
         while (true) {
             session?.engine?.poll()
             delay(250)
             sinceSave += 250
+            sinceGrab += 250
+            if (sinceGrab >= GRAB_EVERY_MS && session?.engine?.state?.value?.playing == true) {
+                sinceGrab = 0
+                grab()
+            }
             if (sinceSave >= SAVE_EVERY_MS && session?.engine?.state?.value?.playing == true) {
                 sinceSave = 0
                 save()
@@ -234,7 +260,10 @@ fun PlayerScreen(item: PlayItem) {
     }
     var wasPlaying by remember { mutableStateOf(false) }
     LaunchedEffect(ui.playing) {
-        if (wasPlaying && !ui.playing) save()
+        if (wasPlaying && !ui.playing) {
+            save()
+            grab()
+        }
         wasPlaying = ui.playing
     }
 
@@ -275,13 +304,25 @@ fun PlayerScreen(item: PlayItem) {
         }
     }
 
+    // Out of the player, with the frame on screen grabbed first (it takes a few milliseconds).
+    val scope = rememberCoroutineScope()
+    var leaving by remember { mutableStateOf(false) }
+    fun leave() {
+        if (leaving) return
+        leaving = true
+        scope.launch {
+            grab()
+            nav.pop()
+        }
+    }
+
     // Back is read straight from the key: the focus traps (panel, pushed screen) swallow it
     // before the activity's back dispatcher sees it.
     val back = {
         when {
             panel != null -> panel = null
             osd && error == null && ui.playing && !ui.inMenu -> osd = false
-            else -> nav.pop()
+            else -> leave()
         }
     }
 

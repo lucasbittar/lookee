@@ -50,6 +50,7 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import com.lookee.tv.data.VideoFrames
+import com.lookee.tv.ui.navigation.rememberedFocus
 import com.lookee.tv.ui.theme.LookeeColors
 
 // ---- text ----
@@ -165,6 +166,33 @@ fun PreviewImage(url: String, videoPath: String, modifier: Modifier = Modifier, 
     }
 }
 
+/**
+ * A Continue Watching picture: the frame where the viewer stopped (VideoFrames.resumeFrame),
+ * else the artwork. The cached frame is found in a few milliseconds; decoding one for an
+ * older entry takes longer, so the artwork shows meanwhile.
+ */
+@Composable
+fun ResumeImage(key: String, positionMs: Long, fallbackUrl: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var checked by remember(key, positionMs) { mutableStateOf(false) }
+    val frame by produceState<java.io.File?>(null, key, positionMs) {
+        value = VideoFrames.resumeFrame(context, key, positionMs)
+        checked = true
+    }
+    val file = frame
+    when {
+        file != null -> AsyncImage(
+            model = file,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            placeholder = ColorPainter(LookeeColors.Surface2),
+            modifier = modifier,
+        )
+        checked -> PreviewImage(fallbackUrl, key, modifier)
+        else -> Box(modifier.background(LookeeColors.Surface2))
+    }
+}
+
 // ---- cards ----
 
 /** The focusable frame every card uses: line border at rest; yellow border, glow and scale on focus. */
@@ -178,7 +206,7 @@ fun MediaSurface(
 ) {
     Surface(
         onClick = onClick,
-        modifier = modifier,
+        modifier = modifier.rememberedFocus(),
         shape = ClickableSurfaceDefaults.shape(shape),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = LookeeColors.Surface2,
@@ -256,6 +284,8 @@ fun StillCard(
     progress: Float? = null,
     onFocused: () -> Unit = {},
     videoPath: String = "",
+    /** Continue Watching: show the frame at this position of [videoPath] (see ResumeImage). */
+    resumeAtMs: Long = 0,
 ) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -269,7 +299,8 @@ fun StillCard(
                     if (it.isFocused) onFocused()
                 },
         ) {
-            PreviewImage(imageUrl, videoPath, Modifier.fillMaxSize())
+            if (resumeAtMs > 0) ResumeImage(videoPath, resumeAtMs, imageUrl, Modifier.fillMaxSize())
+            else PreviewImage(imageUrl, videoPath, Modifier.fillMaxSize())
             if (progress != null) {
                 ProgressLine(progress, Modifier.align(Alignment.BottomStart).fillMaxWidth())
             }

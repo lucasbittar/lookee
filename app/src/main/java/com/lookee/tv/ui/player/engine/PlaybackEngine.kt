@@ -1,6 +1,7 @@
 package com.lookee.tv.ui.player.engine
 
 import android.net.Uri
+import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.lookee.tv.data.SidecarSubtitle
@@ -44,6 +45,9 @@ interface PlaybackEngine {
     fun showDiscMenu() {}
 
     fun release()
+
+    /** The view holding the video surface, while it's on screen (for FrameGrab). */
+    val videoView: View? get() = null
 
     @Composable
     fun VideoSurface(modifier: Modifier)

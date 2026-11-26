@@ -45,6 +45,95 @@ object VideoFrames {
         }
     }
 
+    // ---- Continue Watching: a frame from where the viewer stopped ----
+
+    /**
+     * The frame for a Continue Watching card: the one the player grabbed on the way out (see
+     * FrameGrab), else, for a plain file watched before that existed, one decoded at
+     * [positionMs]. Files are resume/<key hash>-<seconds>.jpg: a new position is a new name,
+     * so the image cache never shows a stale frame. Null means use the artwork.
+     */
+    suspend fun resumeFrame(context: Context, key: String, positionMs: Long): File? = withContext(Dispatchers.IO) {
+        val prefix = sha1(key) + "-"
+        val dir = File(context.cacheDir, "resume")
+        dir.listFiles { f -> f.name.startsWith(prefix) && f.length() > 0 }?.maxByOrNull { it.lastModified() }?.let { return@withContext it }
+        val src = File(key)
+        if (!src.isFile || positionMs <= 0) return@withContext null
+        val failKey = "resume:$key:$positionMs"
+        synchronized(failed) { if (failKey in failed) return@withContext null }
+        val bitmap = gate.withPermit { grabAt(key, positionMs) }
+        if (bitmap == null) {
+            synchronized(failed) { failed += failKey }
+            return@withContext null
+        }
+        try { saveResume(context, key, positionMs, bitmap) } finally { bitmap.recycle() }
+    }
+
+    /** Stores [bitmap] as the frame for [key], replacing its older one; keeps the newest 40. */
+    fun saveResume(context: Context, key: String, positionMs: Long, bitmap: Bitmap): File? {
+        val prefix = sha1(key) + "-"
+        val dir = File(context.cacheDir, "resume").apply { mkdirs() }
+        val out = File(dir, "$prefix${positionMs / 1000}.jpg")
+        val tmp = File(dir, out.name + ".tmp")
+        val ok = runCatching {
+            val trimmed = trimBars(bitmap)
+            tmp.outputStream().use { trimmed.compress(Bitmap.CompressFormat.JPEG, 82, it) }
+            if (trimmed !== bitmap) trimmed.recycle()
+            tmp.renameTo(out)
+        }.getOrDefault(false)
+        if (!ok) return null
+        dir.listFiles { f -> f.name.startsWith(prefix) && f.name != out.name }?.forEach { it.delete() }
+        dir.listFiles()?.sortedByDescending { it.lastModified() }?.drop(40)?.forEach { it.delete() }
+        return out
+    }
+
+    /**
+     * Cuts the black bars off a letterboxed (scope film) or pillarboxed (4:3) frame, so the
+     * picture fills the card instead of sitting in a band of black.
+     */
+    private fun trimBars(b: Bitmap): Bitmap {
+        // A line is bar when nearly all of it is black: a logo or a speck in the bar is allowed.
+        fun dark(n: Int, at: (Int) -> Int): Boolean {
+            val samples = (0 until n step 6).map { luma(at(it)) }
+            return samples.count { it < 24 } >= samples.size * 0.95
+        }
+        fun rowDark(y: Int) = dark(b.width) { b.getPixel(it, y) }
+        fun colDark(x: Int) = dark(b.height) { b.getPixel(x, it) }
+        var top = 0
+        while (top < b.height / 3 && rowDark(top)) top++
+        var bottom = b.height - 1
+        while (bottom > b.height * 2 / 3 && rowDark(bottom)) bottom--
+        var left = 0
+        while (left < b.width / 3 && colDark(left)) left++
+        var right = b.width - 1
+        while (right > b.width * 2 / 3 && colDark(right)) right--
+        // A couple of pixels in, past the soft edge between bar and picture.
+        if (top > 0) top += 2
+        if (bottom < b.height - 1) bottom -= 2
+        if (left > 0) left += 2
+        if (right < b.width - 1) right -= 2
+        val w = right - left + 1
+        val h = bottom - top + 1
+        if (w == b.width && h == b.height) return b
+        if (w < b.width / 3 || h < b.height / 3) return b // mostly dark: leave it be
+        return Bitmap.createBitmap(b, left, top, w, h)
+    }
+
+    private fun luma(c: Int) = ((c shr 16 and 0xFF) * 299 + (c shr 8 and 0xFF) * 587 + (c and 0xFF) * 114) / 1000
+
+    private fun grabAt(path: String, positionMs: Long): Bitmap? {
+        val r = MediaMetadataRetriever()
+        return try {
+            r.setDataSource(path)
+            r.getScaledFrameAtTime(positionMs * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 480, 270)
+                ?.takeUnless { isDark(it).also { dark -> if (dark) it.recycle() } }
+        } catch (e: Exception) {
+            null
+        } finally {
+            runCatching { r.release() }
+        }
+    }
+
     private fun grab(path: String): Bitmap? {
         val r = MediaMetadataRetriever()
         return try {
