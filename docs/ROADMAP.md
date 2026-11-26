@@ -13,7 +13,7 @@ Each phase ends with **exit criteria** that can be checked with a command or on 
 | 2 | Torrent streamer & subtitle client | macOS | ✅ |
 | 3 | gomobile binding & Android TV shell | macOS + emulator | ✅ |
 | 4 | TV screens & USB storage | emulator + Mi Box | 🟨 |
-| 5 | Player & subtitle hot-reload | Mi Box | 🟨 |
+| 5 | Player & subtitle hot-reload | Mi Box | ✅ |
 | 6 | End-to-end build, CI & release | macOS + GitHub | ⬜ |
 
 The guiding idea: everything in Phases 1–2 is plain Go that runs and is tested on the Mac through `lookee-cli`. No Android device is needed until Phase 3, and by then the engine already works.
@@ -257,7 +257,7 @@ Implementation notes (2026-11-24):
 - **Diagnose without ADB:** a new bridge call, `LogEvent`, writes the shell's playback events to the core log: what played, every track with whether the box can decode it, and errors with their Media3 code. These are readable in Settings → Diagnostics or from the phone page. That makes them the record for the format spike. A file whose audio can't play shows a toast ("This file's DTS audio can't play on this box"). An undecodable video shows "Can't play this" with the reason.
 - **Torrent streams:** the buffering screen hands the stream to the player once it's ready. From then on the player stops it (deleting its pieces) when it closes.
 
-**Exit criteria (on the Mi Box)**
+**Exit criteria (on the Mi Box)** — all met 2026-11-26. The box log shows an OpenSubtitles search that hash-matched *Almost Famous* and loaded 1,907 cues on pick; the Van Halen DVD ISO and the Norah Jones Blu-ray playing (0 frames lost); a Discover stream playing, seeking and stopping (its piece folder is removed on stop). Stream subtitle searches now carry the TMDB id and the torrent file's SxxEyy: the first one searched by title text and offered another film's subtitles. **Open, moved to the backlog:** Blu-ray *disc images* (UDF 2.5), which show "can't play yet".
 
 - A 1080p H.264 file and a 4K HEVC file from USB play with hardware decoding.
 - A torrent stream plays, seeks, and its cache is gone after exiting the player.

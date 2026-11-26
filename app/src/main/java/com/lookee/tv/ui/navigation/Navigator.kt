@@ -13,7 +13,7 @@ import com.lookee.tv.data.TorrentResult
 sealed interface Route {
     data class Details(val titleId: Long) : Route
     data class Sources(val item: DiscoverItem) : Route
-    data class Buffering(val title: String, val result: TorrentResult) : Route
+    data class Buffering(val title: String, val result: TorrentResult, val tmdbId: Long = 0, val kind: String = "") : Route
     data object AddFolder : Route
     data class Player(val item: PlayItem) : Route
 }

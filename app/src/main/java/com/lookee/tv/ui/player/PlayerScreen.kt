@@ -252,8 +252,11 @@ fun PlayerScreen(item: PlayItem) {
             titleId = item.titleId.takeIf { it > 0 },
             season = item.season.takeIf { it > 0 },
             episode = item.episode.takeIf { it > 0 },
-            // Streams and unmatched discs: the title is all there is to go on.
-            query = item.title.takeIf { item.titleId <= 0 && !local },
+            tmdbId = item.tmdbId.takeIf { it > 0 },
+            kind = item.kind.ifEmpty { null },
+            fileName = item.streamFile.ifEmpty { null },
+            // Unmatched discs (and streams without a TMDB id): the title is all there is.
+            query = item.title.takeIf { item.titleId <= 0 && item.tmdbId <= 0 && !local },
         )
         subScope.launch {
             search = try {

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/lucasbittar/lookee/core/db"
+	"github.com/lucasbittar/lookee/core/scanner"
 	"github.com/lucasbittar/lookee/core/subtitles"
 )
 
@@ -28,6 +29,9 @@ func (e *Engine) openSubtitles(ctx context.Context) (*subtitles.Client, error) {
 		return nil, err
 	}
 	c := subtitles.NewClient(all[KeyOpenSubtitlesAPIKey])
+	if e.opts.OpenSubtitlesBaseURL != "" {
+		c.BaseURL = e.opts.OpenSubtitlesBaseURL
+	}
 	if u, p := all[KeyOpenSubtitlesUser], all[KeyOpenSubtitlesPass]; u != "" && p != "" && c.APIKey != "" {
 		if err := c.Login(ctx, u, p); err != nil {
 			// Downloads still work anonymously with a lower daily quota.
@@ -55,6 +59,8 @@ type SubtitleRequest struct {
 	Season    int    `json:"season,omitempty"`
 	Episode   int    `json:"episode,omitempty"`
 	Query     string `json:"query,omitempty"` // free text override
+	// FileName is a stream's file name: its SxxEyy fills Season/Episode when they're unset.
+	FileName string `json:"fileName,omitempty"`
 }
 
 // SearchSubtitles searches OpenSubtitles in the preferred languages.
@@ -62,6 +68,11 @@ func (e *Engine) SearchSubtitles(ctx context.Context, req SubtitleRequest) ([]su
 	c, err := e.openSubtitles(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if req.FileName != "" && req.Season == 0 {
+		if p := scanner.Parse(req.FileName); p.IsEpisode() {
+			req.Season, req.Episode = p.Season, p.Episode
+		}
 	}
 	q := subtitles.Query{Languages: e.languages(ctx), Query: req.Query, TMDBID: req.TMDBID,
 		Season: req.Season, Episode: req.Episode, IsEpisode: req.Kind == db.KindTV || req.Episode > 0}

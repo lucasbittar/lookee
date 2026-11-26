@@ -13,6 +13,10 @@ data class PlayItem(
     /** An episode's numbers, for the subtitle search (0 for films and lessons). */
     val season: Int = 0,
     val episode: Int = 0,
+    /** A stream from Discover: its TMDB title and kind ("movie"/"tv"), and the torrent's file. */
+    val tmdbId: Long = 0,
+    val kind: String = "",
+    val streamFile: String = "",
     val startMs: Long = 0,
     /** A torrent stream: the player owns it and stops it (deleting its pieces) when it closes. */
     val stream: Boolean = false,

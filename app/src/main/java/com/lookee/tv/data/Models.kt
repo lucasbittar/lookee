@@ -332,6 +332,8 @@ data class SubtitleRequest(
     val season: Int? = null,
     val episode: Int? = null,
     val query: String? = null,
+    /** A stream's file name: the core reads its SxxEyy. */
+    val fileName: String? = null,
 )
 
 @Serializable

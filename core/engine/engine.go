@@ -68,6 +68,8 @@ type Options struct {
 	LogToStderr bool
 	// TMDBBaseURL overrides the TMDB endpoint (tests only).
 	TMDBBaseURL string
+	// OpenSubtitlesBaseURL overrides the OpenSubtitles endpoint (tests only).
+	OpenSubtitlesBaseURL string
 }
 
 // Engine is the core application object. It is safe for concurrent use.

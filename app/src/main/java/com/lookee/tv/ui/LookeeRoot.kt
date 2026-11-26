@@ -226,7 +226,7 @@ fun LookeeRoot() {
                     when (pushed) {
                         is Route.Details -> DetailsScreen(pushed.titleId)
                         is Route.Sources -> SourcesScreen(pushed.item)
-                        is Route.Buffering -> BufferingScreen(pushed.title, pushed.result)
+                        is Route.Buffering -> BufferingScreen(pushed.title, pushed.result, pushed.tmdbId, pushed.kind)
                         Route.AddFolder -> AddFolderScreen()
                         is Route.Player -> PlayerScreen(pushed.item)
                     }

@@ -265,7 +265,7 @@ fun SourcesScreen(item: DiscoverItem) {
                     items(results.size) { i ->
                         val r = results[i]
                         StreamRow(r, best = i == 0, modifier = if (i == 0) Modifier.focusRequester(first) else Modifier) {
-                            nav.push(Route.Buffering(item.title, r))
+                            nav.push(Route.Buffering(item.title, r, item.id, item.kind))
                         }
                     }
                     val warnings = state.search?.warnings.orEmpty()
@@ -364,7 +364,7 @@ class BufferingViewModel(private val result: TorrentResult, private val core: Go
 }
 
 @Composable
-fun BufferingScreen(title: String, result: TorrentResult) {
+fun BufferingScreen(title: String, result: TorrentResult, tmdbId: Long = 0, kind: String = "") {
     val app = LookeeApp.from(LocalContext.current)
     val vm = viewModel(key = "buffering-${result.infoHash}") { BufferingViewModel(result, app.core) }
     val state by vm.state.collectAsStateWithLifecycle()
@@ -379,7 +379,19 @@ fun BufferingScreen(title: String, result: TorrentResult) {
     LaunchedEffect(stats.state, stats.url) {
         if (stats.state == "ready" && stats.url.isNotEmpty() && !vm.handedOff) {
             vm.handOff()
-            nav.replace(Route.Player(PlayItem(path = stats.url, title = title, subtitle = stats.fileName.ifEmpty { stats.name }, stream = true)))
+            nav.replace(
+                Route.Player(
+                    PlayItem(
+                        path = stats.url,
+                        title = title,
+                        subtitle = stats.fileName.ifEmpty { stats.name },
+                        stream = true,
+                        tmdbId = tmdbId,
+                        kind = kind,
+                        streamFile = stats.fileName,
+                    ),
+                ),
+            )
         }
     }
     DisposableEffect(Unit) { onDispose { vm.stop() } }
