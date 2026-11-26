@@ -50,7 +50,7 @@ import com.lookee.tv.ui.components.SuccessCheck
 import com.lookee.tv.ui.components.Tone
 import com.lookee.tv.ui.theme.LookeeColors
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun SettingsScreen() {
     val app = LookeeApp.from(LocalContext.current)
