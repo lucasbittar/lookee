@@ -318,6 +318,10 @@ data class SubtitleResult(
     val trusted: Boolean = false,
 )
 
+/** One subtitle on screen, from the core's parse of an external file (ms, ms, text). */
+@Serializable
+data class Cue(val s: Long = 0, val e: Long = 0, val t: String = "")
+
 /** What is playing, for an online subtitle search. Any subset may be set. */
 @Serializable
 data class SubtitleRequest(

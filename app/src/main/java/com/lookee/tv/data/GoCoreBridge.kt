@@ -168,6 +168,8 @@ class GoCoreBridge(
 
     suspend fun downloadSubtitle(fileId: Long): PathRef = get { Lookeecore.downloadSubtitle(fileId) }
 
+    suspend fun subtitleCues(path: String): List<Cue> = get { Lookeecore.getSubtitleCues(path) }
+
     suspend fun shiftSubtitle(path: String, offsetMs: Long): PathRef = get { Lookeecore.shiftSubtitle(path, offsetMs) }
 
     // ---- discover ----

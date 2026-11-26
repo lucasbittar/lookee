@@ -9,9 +9,6 @@ import androidx.media3.common.util.UnstableApi
 import com.lookee.tv.ui.player.engine.Choice
 import java.util.Locale
 
-/** Subtitle sidecars are loaded with this id prefix, so the panel can say "Next to the video". */
-const val SIDECAR_ID = "sidecar:"
-
 /** The audio or subtitle tracks as choices; ids are "group/track" indexes into [Tracks.groups]. */
 fun Tracks.trackChoices(type: Int): List<Choice> = groups.withIndex().filter { it.value.type == type }.flatMap { (gi, g) ->
     (0 until g.length).map { i ->
@@ -19,7 +16,7 @@ fun Tracks.trackChoices(type: Int): List<Choice> = groups.withIndex().filter { i
         Choice(
             id = "$gi/$i",
             label = trackLabel(f, type),
-            caption = if (type == C.TRACK_TYPE_AUDIO) audioCaption(f) else if (f.id?.contains(SIDECAR_ID) == true) "Next to the video" else "In the file",
+            caption = if (type == C.TRACK_TYPE_AUDIO) audioCaption(f) else "In the file",
             selected = g.isTrackSelected(i),
             supported = g.isTrackSupported(i),
         )

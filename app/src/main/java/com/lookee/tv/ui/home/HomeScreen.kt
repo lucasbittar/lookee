@@ -102,10 +102,10 @@ class HomeViewModel(private val core: GoCoreBridge, library: LibrarySync, privat
             val home = core.home(20)
             val first = home.continueWatching.firstOrNull()?.let(::heroOf) ?: home.recentlyAdded.firstOrNull()?.let(::heroOf)
             // The focused card's banner is rebuilt from the new data (time left after watching).
+            // A card that left (watched to the end) gives way to the first one.
             val hero = _state.value.hero?.let { old ->
                 home.continueWatching.firstOrNull { "cw:${it.key}" == old.id }?.let(::heroOf)
                     ?: home.recentlyAdded.firstOrNull { "title:${it.id}" == old.id }?.let(::heroOf)
-                    ?: old
             }
             _state.value.copy(loading = false, home = home, hero = hero ?: first, error = null)
         } catch (e: Exception) {
@@ -227,6 +227,8 @@ fun HomeScreen() {
                                                             title = if (item.episode > 0) item.episodeName.ifEmpty { "Episode ${item.episode}" } else item.title,
                                                             subtitle = if (item.episode > 0) "${item.title} · Season ${item.season} · Episode ${item.episode}" else "",
                                                             titleId = item.titleId,
+                                                            season = item.season,
+                                                            episode = item.episode,
                                                             startMs = item.positionMs,
                                                             disc = discKindOf(item.key),
                                                         ),

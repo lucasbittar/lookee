@@ -17,7 +17,6 @@ import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
 import org.videolan.libvlc.interfaces.IMedia
 import org.videolan.libvlc.util.VLCVideoLayout
-import java.io.File
 
 /**
  * libVLC: disc rips with their menus (dvdnav, libbluray), and every audio format the box
@@ -128,9 +127,6 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
         resumeAt = if (source.discMenu && startMs > 0) startMs else 0
         _state.value = EngineState(hasMenu = source.discMenu)
         open(source.uri, startMs, source.discMenu)
-        source.sidecars.forEach { s ->
-            player.addSlave(IMedia.Slave.Type.Subtitle, Uri.fromFile(File(s.path)), false)
-        }
     }
 
     private fun open(uri: Uri, startMs: Long, discMenu: Boolean) {
@@ -302,6 +298,14 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
     override fun selectAudio(id: String) {
         player.audioTrack = id.toInt()
         refreshTracks()
+    }
+
+    override fun positionNow(): Long = pendingSeek ?: if (::player.isInitialized) player.time else 0
+
+    override val canDelaySubtitles = true
+
+    override fun setSubtitleDelay(ms: Long) {
+        if (::player.isInitialized) player.spuDelay = ms * 1000 // microseconds; positive is later
     }
 
     override fun selectText(id: String?) {

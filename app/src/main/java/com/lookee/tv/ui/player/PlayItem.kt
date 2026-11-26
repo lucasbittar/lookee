@@ -10,6 +10,9 @@ data class PlayItem(
     /** The line above the title: "Doctor Who · Season 1 · Episode 3", a lesson's folder, a year. */
     val subtitle: String = "",
     val titleId: Long = 0,
+    /** An episode's numbers, for the subtitle search (0 for films and lessons). */
+    val season: Int = 0,
+    val episode: Int = 0,
     val startMs: Long = 0,
     /** A torrent stream: the player owns it and stops it (deleting its pieces) when it closes. */
     val stream: Boolean = false,

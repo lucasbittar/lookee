@@ -113,6 +113,16 @@ func (e *Engine) DownloadSubtitle(ctx context.Context, fileID int64) (string, er
 	return path, nil
 }
 
+// SubtitleCues reads an external subtitle file into timed cues; the player draws them.
+func (e *Engine) SubtitleCues(path string) ([]subtitles.Cue, error) {
+	cues, err := subtitles.LoadCues(path)
+	if err != nil {
+		e.log.Warn("subtitle cues", "path", path, "err", err)
+		return nil, err
+	}
+	return cues, nil
+}
+
 // PrepareSubtitle returns a UTF-8 copy of any subtitle file, shifted by offsetMS, for the
 // player to load. Originals on the user's drive are never modified.
 func (e *Engine) PrepareSubtitle(path string, offsetMS int64) (string, error) {

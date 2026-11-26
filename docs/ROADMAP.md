@@ -227,9 +227,9 @@ Implementation notes (2026-11-24):
 - [x] Player screen with ExoPlayer for `file://` paths and the loopback stream URL; custom OSD (not the stock `PlayerView` controls).
 - [x] D-pad OSD: play/pause, ±10 s seek, hold-to-scrub, audio track and subtitle track pickers.
 - [x] Resume: save position every few seconds and on stop; prompt "Resume from 43:10?" on Details.
-- [x] Sidecar and embedded subtitles. [ ] Online search panel inside the player.
-- [ ] Hot-reload: rebuild the `MediaItem` with the new `SubtitleConfiguration` and re-prepare at the current position.
-- [ ] Subtitle size control and sync offset (−5.0 s to +5.0 s, 100 ms steps) through `ShiftSubtitle`.
+- [x] Sidecar and embedded subtitles. Online search panel inside the player: "Search OpenSubtitles" at the end of the track list opens the results (language, release, downloads, "Fits this file" for hash matches); picking one downloads it and turns it on. A missing key or used-up quota says what to do.
+- [x] Hot-reload without a reload: external subtitles are drawn by the screen from the core's parsed cues (Decision 17), so a download appears at once, under either engine.
+- [x] Subtitle size control and sync offset (−5.0 s to +5.0 s, 100 ms steps). External subtitles move instantly (drawn by the screen); embedded ones under VLC through its subtitle delay. ExoPlayer can't move its embedded tracks, and the panel says so. Size now works for external subtitles under VLC too. The panel hides the controls and dims the video, so the subtitle being synced reads clearly.
 - [x] Leaving the player always calls `StopStream`, including on process death recovery at next launch (the core sweeps the stream cache at start).
 - [x] Disc rips (Decision 13), in the core's `disc` package and served through `loopback` (shared with torrent streams):
   - `dvd`: the main title set (the `VTS_xx` group with the largest total `.VOB` size, menus excluded), its VOBs joined into one MPEG-PS stream. Seeking works across parts.
@@ -315,6 +315,7 @@ These are places where the plan departs from, or tightens, `CLAUDE.md`. Each lis
 15. **UI quality is a first-class requirement.** The user wants a polished, sleek, modern interface. This was the main problem with Kodi. Before any Phase 4 screen is built, there is a design pass with the user: visual direction, typography, motion, focus states, a component set, and mockups of Home, Details and the player OSD. Phase 3 builds the theme and core components to that standard rather than placeholders. **Visual language approved (2026-11-25):** the phone setup page is the reference. Its dark palette, `#F2B544` yellow accent, gradient "l" mark and card style carry across the app, as specified in [`DESIGN.md`](DESIGN.md). The design pass now covers layouts (Home, Details, OSD), not colors.
 
 16. **SQLite through `mattn/go-sqlite3` (cgo), not `modernc.org/sqlite`.** The pure-Go driver crashed the app on the 32-bit Mi Box. Its libc emulation calls `statx(2)`, which Android 9's app seccomp policy kills instead of rejecting. mattn compiles the real SQLite with the NDK, uses bionic, and needs only `libc.so`. The cost is a C compile in `make bind` (~45 s for three ABIs) and cgo for desktop tests. This was the fallback already listed under Risk 1.
+17. **External subtitles are drawn by the app, not the engines (decided 2026-11-26).** Files next to the video and OpenSubtitles downloads are parsed by the core (`GetSubtitleCues`: SRT, VTT, ASS/SSA, any common encoding, markup dropped) and drawn over the video by `SubtitleOverlay`, which reads the engine's clock 25 times a second. Loading one mid-playback or moving its sync needs no re-prepare (ExoPlayer has no subtitle delay, and re-preparing on every 0.1 s step blanked the picture), and they look and size the same under ExoPlayer and VLC. Subtitles inside the file stay with the engine. The cost: ASS styling (positions, colors) is reduced to plain text.
 
 ## Risks
 

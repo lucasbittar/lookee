@@ -50,7 +50,7 @@ import com.lookee.tv.ui.player.engine.Choice
 import com.lookee.tv.ui.player.engine.SubtitleSize
 import com.lookee.tv.ui.theme.LookeeColors
 
-private val Soft = Color(0xFFC9CED6)
+internal val Soft = Color(0xFFC9CED6)
 
 /**
  * The side panel from the "Subtitle panel" mockup: pick a track (or Off) and, for subtitles,
@@ -108,12 +108,12 @@ internal fun TrackPanel(
 }
 
 @Composable
-private fun Heading(text: String) {
+internal fun Heading(text: String) {
     Text(text.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.08.em, color = LookeeColors.Muted)
 }
 
 @Composable
-private fun Option(label: String, caption: String, selected: Boolean, enabled: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun Option(label: String, caption: String, selected: Boolean, enabled: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
     Surface(
         onClick = onClick,
@@ -147,7 +147,7 @@ private fun Option(label: String, caption: String, selected: Boolean, enabled: B
 }
 
 @Composable
-private fun SizeButton(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+internal fun SizeButton(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         modifier = modifier,
@@ -166,7 +166,7 @@ private fun SizeButton(label: String, selected: Boolean, modifier: Modifier, onC
 }
 
 @Composable
-private fun Check(color: Color) {
+internal fun Check(color: Color) {
     Canvas(Modifier.size(14.dp)) {
         val p = Path().apply {
             moveTo(size.width * 0.12f, size.height * 0.52f)

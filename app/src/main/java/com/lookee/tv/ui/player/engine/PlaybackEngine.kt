@@ -25,6 +25,15 @@ interface PlaybackEngine {
 
     fun load(source: Source, startMs: Long)
 
+    /** The position right now, read every frame while external subtitles are drawn. */
+    fun positionNow(): Long
+
+    /** Can embedded subtitles be moved in time ([setSubtitleDelay])? */
+    val canDelaySubtitles: Boolean get() = false
+
+    /** Shows the engine's own subtitles [ms] later (negative: earlier). */
+    fun setSubtitleDelay(ms: Long) {}
+
     /** Called four times a second by the screen, for state with no events (position, menus). */
     fun poll() {}
     fun play()
@@ -66,8 +75,12 @@ data class Source(
     val uri: Uri,
     /** Shown in logs: the file or folder name. */
     val label: String,
+    /**
+     * Subtitle files next to the video. The screen draws these itself (SubtitleOverlay), as it
+     * does downloads; engines only play subtitles inside the file.
+     */
     val sidecars: List<SidecarSubtitle> = emptyList(),
-    /** The language subtitles come on in by themselves ("pt-BR"); null keeps them off. */
+    /** The language embedded subtitles come on in by themselves ("pt-BR"); null keeps them off. */
     val preferredText: String? = null,
     /** A disc opened at its menu: no resume, and the D-pad drives the menu. */
     val discMenu: Boolean = false,

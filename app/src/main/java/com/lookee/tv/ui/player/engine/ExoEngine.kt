@@ -9,7 +9,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.res.ResourcesCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -24,7 +23,6 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import com.lookee.tv.R
-import com.lookee.tv.ui.player.SIDECAR_ID
 import com.lookee.tv.ui.player.codecName
 import com.lookee.tv.ui.player.describe
 import com.lookee.tv.ui.player.summary
@@ -130,22 +128,6 @@ class ExoEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
         _state.value = EngineState()
         val media = MediaItem.Builder()
             .setUri(source.uri)
-            .setSubtitleConfigurations(
-                source.sidecars.map { s ->
-                    MediaItem.SubtitleConfiguration.Builder(android.net.Uri.fromFile(java.io.File(s.path)))
-                        .setId(SIDECAR_ID + s.name)
-                        .setMimeType(
-                            when (s.format) {
-                                "vtt" -> MimeTypes.TEXT_VTT
-                                "ass", "ssa" -> MimeTypes.TEXT_SSA
-                                else -> MimeTypes.APPLICATION_SUBRIP
-                            },
-                        )
-                        .setLanguage(s.language.ifEmpty { null })
-                        .setLabel(s.language.ifEmpty { s.name })
-                        .build()
-                },
-            )
             .build()
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
@@ -164,6 +146,8 @@ class ExoEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
             bufferedMs = player.bufferedPosition,
         )
     }
+
+    override fun positionNow(): Long = player.currentPosition
 
     override fun play() = player.play()
     override fun pause() = player.pause()

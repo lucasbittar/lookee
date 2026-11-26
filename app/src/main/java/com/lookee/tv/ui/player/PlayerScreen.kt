@@ -72,12 +72,16 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import com.lookee.tv.LookeeApp
 import com.lookee.tv.data.Codes
+import com.lookee.tv.data.Cue
 import com.lookee.tv.data.LookeeException
+import com.lookee.tv.data.SubtitleRequest
+import com.lookee.tv.data.SubtitleResult
 import com.lookee.tv.data.VideoFrames
 import com.lookee.tv.ui.components.LookeeButton
 import com.lookee.tv.ui.components.clock
 import com.lookee.tv.ui.navigation.LocalNavigator
 import com.lookee.tv.ui.navigation.ToastKind
+import com.lookee.tv.ui.player.engine.Choice
 import com.lookee.tv.ui.player.engine.EngineState
 import com.lookee.tv.ui.player.engine.ExoEngine
 import com.lookee.tv.ui.player.engine.MenuKey
@@ -94,16 +98,23 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 private val Ink = Color(0xFF08090B)
-private val Soft = Color(0xFFC9CED6)
 private val Glass = Color(0xFF1C2027).copy(alpha = 0.7f)
 private val GlassLine = Color(0xFFEEF0F3).copy(alpha = 0.18f)
 
 private const val OSD_HIDE_MS = 4_000L
 private const val SAVE_EVERY_MS = 5_000L
+private const val SYNC_NOTE = "◀ ▶ moves 0.1 s, from −5.0 s to +5.0 s. Text later →, earlier ←."
+
+/** What to tell the viewer when OpenSubtitles says no. */
+private fun subtitleProblem(e: LookeeException): SearchState.Failed = when (e.code) {
+    Codes.NO_SUBTITLE_KEY -> SearchState.Failed("Add your OpenSubtitles API key first: Settings → Set up from your phone.", canRetry = false)
+    Codes.SUBTITLE_QUOTA -> SearchState.Failed("Today's OpenSubtitles download limit is used up. It resets within a day.", canRetry = false)
+    else -> SearchState.Failed("Couldn't reach OpenSubtitles. Check the connection and try again.", canRetry = true)
+}
 private const val GRAB_EVERY_MS = 20_000L
 private const val SEEK_MS = 10_000L
 
-private enum class Panel { Subtitles, Audio }
+private enum class Panel { Subtitles, Search, Audio }
 
 private enum class OsdFocus { Play, Bar }
 
@@ -179,6 +190,123 @@ fun PlayerScreen(item: PlayItem) {
             openError = if (e.code == Codes.UNSUPPORTED_DISC) discProblem(e) else (e.message ?: "This couldn't be opened.")
             log("open ${File(target.path).name}: ${e.message}", true)
         }
+    }
+
+    var panel by remember { mutableStateOf<Panel?>(null) }
+
+    // ---- subtitles the screen draws itself (files next to the video, downloads) ----
+    var externals by remember(current) { mutableStateOf<List<ExternalSub>>(emptyList()) }
+    var activeExternal by remember(current) { mutableStateOf<String?>(null) }
+    var cues by remember(current) { mutableStateOf<List<Cue>>(emptyList()) }
+    var subOffset by remember(current) { mutableLongStateOf(0L) }
+    var search by remember(current) { mutableStateOf<SearchState>(SearchState.Loading) }
+    var searched by remember(current) { mutableStateOf(false) }
+    var downloading by remember(current) { mutableStateOf<Long?>(null) }
+    val subScope = rememberCoroutineScope()
+
+    fun activate(sub: ExternalSub, quiet: Boolean = false) {
+        subScope.launch {
+            try {
+                val loaded = app.core.subtitleCues(sub.path)
+                cues = loaded
+                activeExternal = sub.id
+                subOffset = 0
+                session?.engine?.apply {
+                    selectText(null)
+                    setSubtitleDelay(0)
+                }
+                log("subtitles ${sub.label} (${sub.caption}): ${loaded.size} cues", false)
+            } catch (e: LookeeException) {
+                log("subtitles ${sub.path}: ${e.message}", true)
+                if (!quiet) nav.toast("This subtitle file couldn't be read", ToastKind.Problem)
+            }
+        }
+    }
+
+    fun pickSubtitle(id: String?) {
+        val eng = session?.engine
+        subOffset = 0
+        eng?.setSubtitleDelay(0)
+        when {
+            id == null -> {
+                activeExternal = null
+                cues = emptyList()
+                eng?.selectText(null)
+            }
+            id.startsWith(EXTERNAL) -> externals.firstOrNull { EXTERNAL + it.id == id }?.let { activate(it) }
+            else -> {
+                activeExternal = null
+                cues = emptyList()
+                eng?.selectText(id)
+            }
+        }
+    }
+
+    fun runSearch() {
+        searched = true
+        search = SearchState.Loading
+        val item = current
+        val local = !item.stream && item.disc == null
+        val request = SubtitleRequest(
+            videoPath = item.path.takeIf { local },
+            titleId = item.titleId.takeIf { it > 0 },
+            season = item.season.takeIf { it > 0 },
+            episode = item.episode.takeIf { it > 0 },
+            // Streams and unmatched discs: the title is all there is to go on.
+            query = item.title.takeIf { item.titleId <= 0 && !local },
+        )
+        subScope.launch {
+            search = try {
+                val found = app.core.searchSubtitles(request)
+                if (found.isEmpty()) {
+                    SearchState.Failed("Nothing found in your subtitle languages. You can change them in Settings.", canRetry = true)
+                } else {
+                    SearchState.Results(found)
+                }
+            } catch (e: LookeeException) {
+                log("subtitle search ${item.title}: ${e.message}", true)
+                subtitleProblem(e)
+            }
+        }
+    }
+
+    fun download(r: SubtitleResult) {
+        if (downloading != null) return
+        downloading = r.fileId
+        subScope.launch {
+            try {
+                val path = app.core.downloadSubtitle(r.fileId).path
+                val sub = ExternalSub("os${r.fileId}", languageName(r.language.ifEmpty { "und" }), "OpenSubtitles", path)
+                externals = externals.filterNot { it.id == sub.id } + sub
+                activate(sub)
+                panel = Panel.Subtitles
+            } catch (e: LookeeException) {
+                log("subtitle download ${r.fileId}: ${e.message}", true)
+                val problem = subtitleProblem(e)
+                nav.toast(if (problem is SearchState.Failed) problem.message else "Couldn't download those subtitles", ToastKind.Problem)
+            } finally {
+                downloading = null
+            }
+        }
+    }
+
+    // Files next to the video are listed with the tracks; one in the preferred language comes on.
+    LaunchedEffect(session?.source) {
+        val source = session?.source ?: return@LaunchedEffect
+        if (externals.isNotEmpty()) return@LaunchedEffect // an engine switch: keep what's on
+        externals = source.sidecars.map { sc ->
+            ExternalSub("side:${sc.name}", sc.language.takeIf { it.isNotEmpty() }?.let(::languageName) ?: sc.name.substringBeforeLast('.'), "Next to the video", sc.path)
+        }
+        val preferred = source.preferredText ?: return@LaunchedEffect
+        val match = source.sidecars.indexOfFirst { sc ->
+            sc.language.isNotEmpty() && (sc.language.equals(preferred, true) || preferred.startsWith(sc.language + "-", true))
+        }
+        if (match >= 0) activate(externals[match], quiet = true)
+    }
+    // An external subtitle is on: the engine's own stay off (a default-flagged track would
+    // otherwise come on underneath when it is found).
+    LaunchedEffect(ui.text, activeExternal) {
+        if (activeExternal != null && ui.text.any { it.selected }) session?.engine?.selectText(null)
     }
 
     // ExoPlayer couldn't play it: carry on with VLC from the same spot.
@@ -273,12 +401,13 @@ fun PlayerScreen(item: PlayItem) {
     // ---- OSD visibility and focus ----
     var osd by remember { mutableStateOf(true) }
     var osdFocus by remember { mutableStateOf(OsdFocus.Play) }
-    var panel by remember { mutableStateOf<Panel?>(null) }
     var lastInput by remember { mutableLongStateOf(0L) }
     val root = remember { FocusRequester() }
     val playButton = remember { FocusRequester() }
     val bar = remember { FocusRequester() }
-    val showControls = (osd || panel != null) && !ui.inMenu
+    // A side panel hides the controls and dims the video, so a subtitle being synced reads clearly.
+    val showControls = osd && panel == null && !ui.inMenu
+    val dim by animateFloatAsState(if (panel != null) 0.45f else 0f, tween(220), label = "dim")
     val alpha by animateFloatAsState(if (showControls) 1f else 0f, tween(220), label = "osd")
 
     fun show(focus: OsdFocus) {
@@ -320,6 +449,7 @@ fun PlayerScreen(item: PlayItem) {
     // before the activity's back dispatcher sees it.
     val back = {
         when {
+            panel == Panel.Search -> panel = Panel.Subtitles
             panel != null -> panel = null
             osd && error == null && ui.playing && !ui.inMenu -> osd = false
             else -> leave()
@@ -375,6 +505,20 @@ fun PlayerScreen(item: PlayItem) {
     ) {
         engine?.VideoSurface(Modifier.fillMaxSize())
 
+        if (dim > 0f) Box(Modifier.fillMaxSize().background(Ink.copy(alpha = dim)))
+
+        if (engine != null && activeExternal != null && !ui.inMenu) {
+            SubtitleOverlay(
+                cues = cues,
+                offsetMs = subOffset,
+                position = { engine.positionNow() },
+                size = subtitleSize,
+                lifted = showControls,
+                // With the panel open, centred on the picture left of it, as in the mockup.
+                modifier = Modifier.padding(end = if (panel != null) 340.dp else 0.dp),
+            )
+        }
+
         if ((engine == null || ui.buffering) && error == null && !ui.inMenu) Spinner(Modifier.align(Alignment.Center))
 
         // ---- OSD ----
@@ -389,8 +533,8 @@ fun PlayerScreen(item: PlayItem) {
                 SeekBar(ui, onSeek = { delta -> engine.seekBy(delta) }, modifier = Modifier.focusRequester(bar))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        val on = ui.text.firstOrNull { it.selected }
-                        PillButton("Subtitles" + (on?.let { " · ${it.label}" } ?: ""), Glyph.Subtitles) { panel = Panel.Subtitles }
+                        val on = externals.firstOrNull { it.id == activeExternal }?.label ?: ui.text.firstOrNull { it.selected }?.label
+                        PillButton("Subtitles" + (on?.let { " · $it" } ?: ""), Glyph.Subtitles) { panel = Panel.Subtitles }
                         if (ui.audio.size > 1) PillButton("Audio", Glyph.Audio) { panel = Panel.Audio }
                         if (ui.hasMenu) PillButton("Disc menu", Glyph.Menu) { engine.showDiscMenu() }
                     }
@@ -413,21 +557,55 @@ fun PlayerScreen(item: PlayItem) {
 
         error?.let { message -> ErrorPanel(message, onBack = { nav.pop() }, Modifier.align(Alignment.Center)) }
 
-        panel?.let { p ->
-            val subtitles = p == Panel.Subtitles
-            TrackPanel(
-                title = if (subtitles) "Subtitles" else "Audio",
-                choices = if (subtitles) ui.text else ui.audio,
-                offOption = subtitles,
-                offSelected = ui.text.none { it.selected },
-                onPick = { id -> if (subtitles) engine?.selectText(id) else id?.let { engine?.selectAudio(it) } },
-                size = if (subtitles && engine?.canResizeSubtitles == true) subtitleSize else null,
-                onSize = {
-                    subtitleSize = it
-                    engine?.setSubtitleSize(it)
-                },
+        when (panel) {
+            Panel.Subtitles -> {
+                val embeddedOn = activeExternal == null && ui.text.any { it.selected }
+                val choices = ui.text.map { if (activeExternal != null) it.copy(selected = false) else it } +
+                    externals.map { Choice(EXTERNAL + it.id, it.label, it.caption, selected = it.id == activeExternal) }
+                SubtitlePanel(
+                    choices = choices,
+                    offSelected = activeExternal == null && !embeddedOn,
+                    onPick = ::pickSubtitle,
+                    onSearch = {
+                        if (!searched || search is SearchState.Failed) runSearch()
+                        panel = Panel.Search
+                    },
+                    sync = when {
+                        activeExternal != null || (embeddedOn && engine?.canDelaySubtitles == true) -> SyncState(subOffset, true, SYNC_NOTE)
+                        embeddedOn -> SyncState(0, false, "Sync works with subtitle files and OpenSubtitles downloads, not the ones inside this video.")
+                        else -> null
+                    },
+                    onSync = { ms ->
+                        subOffset = ms
+                        if (activeExternal == null) engine?.setSubtitleDelay(ms)
+                    },
+                    size = if (activeExternal != null || engine?.canResizeSubtitles == true) subtitleSize else null,
+                    onSize = {
+                        subtitleSize = it
+                        engine?.setSubtitleSize(it)
+                    },
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                )
+            }
+            Panel.Search -> SubtitleSearchPanel(
+                lookingFor = "For " + listOf(current.subtitle.substringBefore(" · Season"), current.title).filter { it.isNotBlank() }.distinct().joinToString(" · "),
+                state = search,
+                downloading = downloading,
+                onPick = ::download,
+                onRetry = ::runSearch,
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
+            Panel.Audio -> TrackPanel(
+                title = "Audio",
+                choices = ui.audio,
+                offOption = false,
+                offSelected = false,
+                onPick = { id -> id?.let { engine?.selectAudio(it) } },
+                size = null,
+                onSize = {},
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+            null -> {}
         }
     }
 }
@@ -667,7 +845,7 @@ private fun GlyphIcon(glyph: Glyph, color: Color) {
 }
 
 @Composable
-private fun Spinner(modifier: Modifier) {
+internal fun Spinner(modifier: Modifier) {
     val angle by rememberInfiniteTransition(label = "spin").animateFloat(0f, 360f, infiniteRepeatable(tween(900, easing = LinearEasing)), label = "spin")
     Canvas(modifier.size(44.dp)) {
         drawArc(LookeeColors.Text.copy(alpha = 0.15f), 0f, 360f, false, style = Stroke(size.width * 0.09f))

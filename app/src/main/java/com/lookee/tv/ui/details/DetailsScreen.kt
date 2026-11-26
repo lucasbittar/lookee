@@ -297,6 +297,8 @@ private fun SeriesBody(d: MediaDetails, vm: DetailsViewModel) {
                 title = e.name.ifEmpty { "Episode ${f.episode}" },
                 subtitle = "${d.title} · Season ${f.season} · Episode ${f.episode}",
                 titleId = d.id,
+                season = f.season,
+                episode = f.episode,
                 startMs = if (i == 0 && !finished) f.positionMs else 0,
             )
         }

@@ -464,6 +464,12 @@ func ShiftSubtitle(path string, offsetMS int64) (string, error) {
 	})
 }
 
+// GetSubtitleCues reads a subtitle file (.srt/.vtt/.ass/.ssa) into [{"s","e","t"}]:
+// start and end in ms and the text. The player draws external subtitles from these.
+func GetSubtitleCues(path string) (string, error) {
+	return call(func(_ context.Context, e *engine.Engine) (any, error) { return e.SubtitleCues(path) })
+}
+
 // PathRef carries a local file path.
 type PathRef struct {
 	Path string `json:"path"`
