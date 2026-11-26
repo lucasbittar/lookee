@@ -143,6 +143,7 @@ func TestProgress(t *testing.T) {
 	s := openTest(t)
 	must(t, s.SaveProgress(ctx, Progress{Key: "a", PositionMS: 1000, DurationMS: 10000}))
 	must(t, s.SaveProgress(ctx, Progress{Key: "done", PositionMS: 9900, DurationMS: 10000}))
+	must(t, s.SaveProgress(ctx, Progress{Key: "http://127.0.0.1:4321/stream", PositionMS: 1000, DurationMS: 10000}))
 	must(t, s.SaveProgress(ctx, Progress{Key: "a", PositionMS: 2000, DurationMS: 10000}))
 	p, err := s.GetProgress(ctx, "a")
 	must(t, err)
@@ -151,7 +152,7 @@ func TestProgress(t *testing.T) {
 	}
 	recent, _ := s.RecentProgress(ctx, 10)
 	if len(recent) != 1 || recent[0].Key != "a" {
-		t.Fatalf("finished items should be excluded: %+v", recent)
+		t.Fatalf("finished items and streams should be excluded: %+v", recent)
 	}
 }
 

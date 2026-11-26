@@ -13,12 +13,12 @@ import kotlin.math.roundToInt
  * mode through the window, and [restore] goes back to the system's choice.
  */
 object RefreshRate {
-    /** Picks a mode for [fps] at the current resolution; returns a line for the log, or null if nothing changed. */
+    /** Picks a mode for [fps] at the current resolution; returns a line for the log. */
     fun match(activity: Activity, fps: Float): String? {
         if (fps < 10f) return null
         val display = activity.window.decorView.display ?: return null
         val current = display.mode
-        if (fits(current.refreshRate, fps)) return null
+        if (fits(current.refreshRate, fps)) return "refresh %.2f Hz kept for %.3f fps".format(current.refreshRate, fps)
         val candidates = display.supportedModes.filter {
             it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight && fits(it.refreshRate, fps)
         }

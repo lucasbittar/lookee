@@ -57,6 +57,42 @@ func TestDVDPicksLargestTitleSet(t *testing.T) {
 	}
 }
 
+// vtsIFO is the start of a title set's IFO up to its video attributes: PAL or NTSC.
+func vtsIFO(pal bool) []byte {
+	b := make([]byte, 0x202)
+	copy(b, "DVDVIDEO-VTS")
+	b[0x200] = 0x40 // MPEG-2, NTSC
+	if pal {
+		b[0x200] |= 0x10
+	}
+	return b
+}
+
+func TestDVDFrameRateFromIFO(t *testing.T) {
+	for _, c := range []struct {
+		pal  bool
+		want float64
+	}{{true, 25}, {false, 30000.0 / 1001}} {
+		dir := filepath.Join(t.TempDir(), "VIDEO_TS")
+		write(t, filepath.Join(dir, "VTS_01_0.IFO"), vtsIFO(c.pal))
+		write(t, filepath.Join(dir, "VTS_01_1.VOB"), []byte("feature"))
+		title, err := Find(dir, "dvd")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if title.FrameRate != c.want {
+			t.Fatalf("pal=%v: frame rate %v, want %v", c.pal, title.FrameRate, c.want)
+		}
+	}
+	// No IFO, or not a title set's: unknown.
+	dir := filepath.Join(t.TempDir(), "VIDEO_TS")
+	write(t, filepath.Join(dir, "VTS_01_0.IFO"), []byte("junk"))
+	write(t, filepath.Join(dir, "VTS_01_1.VOB"), []byte("feature"))
+	if title, _ := Find(dir, "dvd"); title.FrameRate != 0 {
+		t.Fatalf("junk IFO gave %v fps", title.FrameRate)
+	}
+}
+
 func TestDVDLooseVOBs(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, "Show part 10.vob"), []byte("3"))

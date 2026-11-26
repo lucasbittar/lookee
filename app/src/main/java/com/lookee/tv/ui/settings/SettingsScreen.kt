@@ -2,6 +2,9 @@ package com.lookee.tv.ui.settings
 
 import androidx.compose.runtime.withFrameNanos
 import com.lookee.tv.ui.navigation.LocalNavInset
+import com.lookee.tv.ui.navigation.RevealFocusScroll
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.runtime.CompositionLocalProvider
 import kotlinx.coroutines.launch
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.rememberCoroutineScope
@@ -43,6 +46,7 @@ import com.lookee.tv.ui.components.SuccessCheck
 import com.lookee.tv.ui.components.Tone
 import com.lookee.tv.ui.theme.LookeeColors
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun SettingsScreen() {
     val app = LookeeApp.from(LocalContext.current)
@@ -51,37 +55,42 @@ fun SettingsScreen() {
 
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    LazyColumn(
-        state = list,
-        modifier = Modifier.fillMaxSize().padding(top = LocalNavInset.current),
-        contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 48.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        // The heading scrolls with the cards.
-        item {
-            Text("Settings", style = MaterialTheme.typography.displaySmall, color = LookeeColors.Text)
-        }
-        state.error?.let { item { Alert("The core reported a problem: $it") } }
-        item {
-            // Scrolling following focus would park the card's button at the top and hide the
-            // card's heading; on the first row, go all the way back to the top instead, a couple
-            // of frames later so it lands after the focus scroll.
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                modifier = Modifier.onFocusChanged { if (it.hasFocus) scope.launch { withFrameNanos { }; withFrameNanos { }; list.scrollToItem(0) } },
-            ) {
-                PhoneSetupCard(state.phone, vm::startPhoneSetup, vm::stopPhoneSetup, Modifier.weight(1.2f))
-                StatusCard(state.settings, Modifier.weight(1f))
+    // A page of cards: scroll only to reveal what focus lands on (see RevealFocusScroll).
+    CompositionLocalProvider(LocalBringIntoViewSpec provides RevealFocusScroll) {
+        LazyColumn(
+            state = list,
+            modifier = Modifier.fillMaxSize().padding(top = LocalNavInset.current),
+            contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            // The heading scrolls with the cards.
+            item {
+                Text("Settings", style = MaterialTheme.typography.displaySmall, color = LookeeColors.Text)
             }
-        }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                LibraryCard(Modifier.weight(1.2f))
-                StorageCard(Modifier.weight(1f))
+            state.error?.let { item { Alert("The core reported a problem: $it") } }
+            item {
+                // Coming back up to the first row, show the page heading too, a couple of frames
+                // later so it lands after the focus scroll. From the tabs the page is already at
+                // the top, and nothing moves.
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    modifier = Modifier.onFocusChanged {
+                        if (it.hasFocus && list.canScrollBackward) scope.launch { withFrameNanos { }; withFrameNanos { }; list.scrollToItem(0) }
+                    },
+                ) {
+                    PhoneSetupCard(state.phone, vm::startPhoneSetup, vm::stopPhoneSetup, Modifier.weight(1.2f))
+                    StatusCard(state.settings, Modifier.weight(1f))
+                }
             }
-        }
-        item {
-            DiagnosticsCard(state, onRefresh = vm::refresh)
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                    LibraryCard(Modifier.weight(1.2f))
+                    StorageCard(Modifier.weight(1f))
+                }
+            }
+            item {
+                DiagnosticsCard(state, onRefresh = vm::refresh)
+            }
         }
     }
 }

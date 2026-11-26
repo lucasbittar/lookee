@@ -14,6 +14,8 @@ type DiscPlay struct {
 	Parts   int     `json:"parts"`
 	Size    int64   `json:"size"`
 	Seconds float64 `json:"seconds,omitempty"`
+	// FrameRate: the video's fps when the disc says (DVDs), else 0.
+	FrameRate float64 `json:"frameRate,omitempty"`
 }
 
 // PlayDisc finds the main title of the disc rip at path (Decision 13) and serves it on the
@@ -38,7 +40,7 @@ func (e *Engine) PlayDisc(_ context.Context, path, kind string) (DiscPlay, error
 	e.disc = srv
 	e.discMu.Unlock()
 	e.log.Info("disc", "path", path, "title", title.String())
-	return DiscPlay{URL: srv.URL(), Kind: title.Kind, Parts: len(title.Parts), Size: title.Size(), Seconds: title.Seconds}, nil
+	return DiscPlay{URL: srv.URL(), Kind: title.Kind, Parts: len(title.Parts), Size: title.Size(), Seconds: title.Seconds, FrameRate: title.FrameRate}, nil
 }
 
 // StopDisc closes the disc server, if one is running.

@@ -27,6 +27,9 @@ type Title struct {
 	M2TS bool `json:"m2ts"`
 	// Seconds is the playlist's length when a Blu-ray playlist chose the title (0 otherwise).
 	Seconds float64 `json:"seconds,omitempty"`
+	// FrameRate is the video's frames per second when the disc says (a DVD's IFO: 25 for
+	// PAL, 29.97 for NTSC); 0 when unknown. The player matches the TV's refresh rate to it.
+	FrameRate float64 `json:"frameRate,omitempty"`
 }
 
 // Size is the joined length in bytes.
@@ -84,7 +87,7 @@ var vtsName = regexp.MustCompile(`(?i)^VTS_(\d\d)_(\d)\.VOB$`)
 // dvdMain picks the main title set: the VTS_xx group whose .VOBs (parts 1–9; part 0 is
 // the menu) add up to the most bytes, joined in part order. Loose VOBs without VTS names
 // are joined in natural order, leaving out the VIDEO_TS.VOB menu.
-func dvdMain(files []file) []Part {
+func dvdMain(files []file) (parts []Part, fps float64) {
 	groups := map[string][]file{}
 	sizes := map[string]int64{}
 	var loose []file
@@ -115,11 +118,45 @@ func dvdMain(files []file) []Part {
 		chosen = groups[best]
 	}
 	sort.Slice(chosen, func(i, j int) bool { return scanner.NaturalLess(chosen[i].name, chosen[j].name) })
-	parts := make([]Part, len(chosen))
+	parts = make([]Part, len(chosen))
 	for i, f := range chosen {
 		parts[i] = f.part
 	}
-	return parts
+	if best != "" {
+		for _, f := range files {
+			if strings.EqualFold(f.name, "VTS_"+best+"_0.IFO") {
+				fps = ifoFrameRate(f.part)
+				break
+			}
+		}
+	}
+	return parts, fps
+}
+
+// ifoFrameRate reads a title set's video attributes (VTS_xx_0.IFO, offset 0x200): bits 5–4
+// of the first byte are the TV standard, 0 for NTSC (29.97 fps) and 1 for PAL (25 fps).
+// 0 when the file can't be read or isn't a VTS IFO.
+func ifoFrameRate(ifo Part) float64 {
+	f, err := os.Open(ifo.Path)
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+	head := make([]byte, 12)
+	attr := make([]byte, 1)
+	if _, err := f.ReadAt(head, ifo.Offset); err != nil || string(head) != "DVDVIDEO-VTS" {
+		return 0
+	}
+	if _, err := f.ReadAt(attr, ifo.Offset+0x200); err != nil {
+		return 0
+	}
+	switch attr[0] >> 4 & 3 {
+	case 0:
+		return 30000.0 / 1001
+	case 1:
+		return 25
+	}
+	return 0
 }
 
 func dvdFolder(dir string) (*Title, error) {
@@ -131,11 +168,11 @@ func dvdFolder(dir string) (*Title, error) {
 	if err != nil {
 		return nil, err
 	}
-	parts := dvdMain(files)
+	parts, fps := dvdMain(files)
 	if len(parts) == 0 {
 		return nil, fmt.Errorf("%w: no title VOBs in %s", ErrUnsupported, dir)
 	}
-	return &Title{Kind: scanner.KindDVD, Name: "title.vob", Parts: parts}, nil
+	return &Title{Kind: scanner.KindDVD, Name: "title.vob", Parts: parts, FrameRate: fps}, nil
 }
 
 // ---- Blu-ray ----
@@ -338,11 +375,11 @@ func isoImage(path string) (*Title, error) {
 			files = append(files, file{e.name, Part{Path: path, Offset: e.lba * sector, Size: e.size}})
 		}
 	}
-	parts := dvdMain(files)
+	parts, fps := dvdMain(files)
 	if len(parts) == 0 {
 		return nil, fmt.Errorf("%w: no title VOBs in this image", ErrUnsupported)
 	}
-	return &Title{Kind: scanner.KindISO, Name: "title.vob", Parts: parts}, nil
+	return &Title{Kind: scanner.KindISO, Name: "title.vob", Parts: parts, FrameRate: fps}, nil
 }
 
 type isoEntry struct {
@@ -408,6 +445,9 @@ func (t *Title) String() string {
 	s += fmt.Sprintf(", %.1f GB", float64(t.Size())/1e9)
 	if t.Seconds > 0 {
 		s += fmt.Sprintf(", %.0f min playlist", t.Seconds/60)
+	}
+	if t.FrameRate > 0 {
+		s += fmt.Sprintf(", %.3g fps", t.FrameRate)
 	}
 	if t.M2TS {
 		s += ", m2ts→ts"

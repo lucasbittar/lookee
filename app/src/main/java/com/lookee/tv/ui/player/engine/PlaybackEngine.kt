@@ -71,6 +71,8 @@ data class Source(
     val alternates: List<Uri> = emptyList(),
     /** The length when the source can't say (the core's Blu-ray stream: its playlist's length). */
     val durationHintMs: Long = 0,
+    /** The frame rate when the source can't say (a DVD: the core reads it from the disc). */
+    val frameRateHint: Float = 0f,
 )
 
 /** An audio or subtitle track to pick. */

@@ -24,3 +24,24 @@ object FollowFocusScroll : BringIntoViewSpec {
         return offset - margin
     }
 }
+
+/**
+ * For pages of forms and cards (Settings): scroll only when the focused item isn't fully on
+ * screen, and then just enough to show it. Following focus would scroll on the first move
+ * into the page and hide its heading.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+object RevealFocusScroll : BringIntoViewSpec {
+    @Suppress("DEPRECATION")
+    override val scrollAnimationSpec: AnimationSpec<Float> = snap()
+
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        val margin = containerSize * 0.05f
+        val end = offset + size
+        return when {
+            offset >= 0f && end <= containerSize -> 0f // already in view
+            offset < 0f || size > containerSize - 2 * margin -> offset - margin // above, or too tall: top at the margin
+            else -> end - (containerSize - margin) // below: bottom at the margin
+        }
+    }
+}

@@ -403,15 +403,18 @@ private suspend fun resolveSource(item: PlayItem, app: LookeeApp): Pair<Source, 
     fun mrl(scheme: String, f: File) = Uri.parse("$scheme://" + Uri.fromFile(f).encodedPath)
     val kind = disc.ifEmpty { guessDisc(file) }
     // The core's joined main title: the backup when VLC can't open the disc structure (a rip
-    // without its .IFO files, say). Null when the core can't read it either.
-    suspend fun mainTitle(k: String) = runCatching { Uri.parse(app.core.playDisc(item.path, k).url) }.getOrNull()
+    // without its .IFO files, say). Null when the core can't read it either. It also says the
+    // DVD's frame rate, which VLC doesn't report for discs (the TV's refresh rate follows it).
+    val main = runCatching { app.core.playDisc(item.path, if (kind == "dvd" || kind == "iso") kind else "bluray") }.getOrNull()
+    val mainUri = main?.let { Uri.parse(it.url) }
+    val fps = main?.frameRate?.toFloat() ?: 0f
     return when {
-        kind == "iso" -> Source(mrl("dvd", file), label, discMenu = true, alternates = listOfNotNull(mrl("bluray", file), mainTitle("iso"))) to true
-        kind == "dvd" -> Source(mrl("dvd", file), label, discMenu = true, alternates = listOfNotNull(mainTitle("dvd"))) to true
-        file.name.equals("BDMV", ignoreCase = true) -> Source(mrl("bluray", file.parentFile ?: file), label, discMenu = true, alternates = listOfNotNull(mainTitle("bluray"))) to true
-        File(file, "BDMV").isDirectory -> Source(mrl("bluray", file), label, discMenu = true, alternates = listOfNotNull(mainTitle("bluray"))) to true
+        kind == "iso" -> Source(mrl("dvd", file), label, discMenu = true, alternates = listOfNotNull(mrl("bluray", file), mainUri), frameRateHint = fps) to true
+        kind == "dvd" -> Source(mrl("dvd", file), label, discMenu = true, alternates = listOfNotNull(mainUri), frameRateHint = fps) to true
+        file.name.equals("BDMV", ignoreCase = true) -> Source(mrl("bluray", file.parentFile ?: file), label, discMenu = true, alternates = listOfNotNull(mainUri)) to true
+        File(file, "BDMV").isDirectory -> Source(mrl("bluray", file), label, discMenu = true, alternates = listOfNotNull(mainUri)) to true
         // Flattened Blu-ray copy: the core serves the main playlist as one stream.
-        else -> app.core.playDisc(item.path, "bluray").let { play ->
+        else -> (main ?: app.core.playDisc(item.path, "bluray")).let { play ->
             Source(Uri.parse(play.url), label, durationHintMs = (play.seconds * 1000).toLong()) to true
         }
     }

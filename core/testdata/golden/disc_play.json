@@ -3,5 +3,6 @@
   "kind": "bluray",
   "parts": 2,
   "size": 31000000000,
-  "seconds": 7260
+  "seconds": 7260,
+  "frameRate": 23.976
 }

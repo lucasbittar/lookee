@@ -701,6 +701,7 @@ func (s *Store) RecentProgress(ctx context.Context, limit int) ([]Progress, erro
 	rows, err := s.sql.QueryContext(ctx, `
 		SELECT key, COALESCE(title_id, 0), position_ms, duration_ms, updated_at FROM playback_progress
 		WHERE duration_ms > 0 AND position_ms < duration_ms * 95 / 100 AND position_ms > 0
+			AND key NOT LIKE 'http%' -- torrent streams from Discover: their address dies with the stream
 		ORDER BY updated_at DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err

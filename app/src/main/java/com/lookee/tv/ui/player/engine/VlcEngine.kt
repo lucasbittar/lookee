@@ -2,6 +2,8 @@ package com.lookee.tv.ui.player.engine
 
 import android.content.Context
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
@@ -52,6 +54,18 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
     private var described = false
     private var lastLoad: Pair<Source, Long>? = null
     private var durationHint = 0L
+    private var frameRateHint = 0f
+
+    // Seeks wait for the presses to stop: each one makes VLC flush and refill the hardware
+    // decoder, and a burst of them (holding fast-forward) used to bring the box down.
+    private val main = Handler(Looper.getMainLooper())
+    private var pendingSeek: Long? = null
+    private val applySeek = Runnable {
+        pendingSeek?.let { target ->
+            pendingSeek = null
+            seekNow(target)
+        }
+    }
 
     /** VLC's own length, else the source's hint (a stream served by the core has none). */
     private val length: Long get() = player.length.takeIf { it > 0 } ?: durationHint
@@ -65,7 +79,7 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
                 }
                 MediaPlayer.Event.Paused, MediaPlayer.Event.Stopped -> _state.update { it.copy(playing = false) }
                 MediaPlayer.Event.Buffering -> _state.update { it.copy(buffering = e.buffering < 100f) }
-                MediaPlayer.Event.TimeChanged -> _state.update { it.copy(positionMs = e.timeChanged) }
+                MediaPlayer.Event.TimeChanged -> if (pendingSeek == null) _state.update { it.copy(positionMs = e.timeChanged) }
                 MediaPlayer.Event.LengthChanged -> if (e.lengthChanged > 0) _state.update { it.copy(durationMs = e.lengthChanged) }
                 MediaPlayer.Event.ESAdded, MediaPlayer.Event.ESDeleted, MediaPlayer.Event.ESSelected, MediaPlayer.Event.Vout -> refreshTracks()
                 MediaPlayer.Event.EndReached -> _state.update { it.copy(ended = true, playing = false) }
@@ -92,6 +106,7 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
         label = source.label
         alternates = source.alternates
         durationHint = source.durationHintMs
+        frameRateHint = source.frameRateHint
         lastLoad = source to startMs
         _state.value = EngineState(hasMenu = source.discMenu)
         open(source.uri, startMs, source.discMenu)
@@ -118,12 +133,23 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
         val hasMenu = titles?.any { it.isMenu } == true
         _state.update {
             it.copy(
-                positionMs = if (player.time >= 0) player.time else it.positionMs,
+                positionMs = pendingSeek ?: if (player.time >= 0) player.time else it.positionMs,
                 durationMs = length.takeIf { l -> l > 0 } ?: it.durationMs,
                 inMenu = inMenu,
                 hasMenu = it.hasMenu || hasMenu,
             )
         }
+        if (_state.value.frameRate == 0f) frameRate()?.let { fps -> _state.update { it.copy(frameRate = fps) } }
+    }
+
+    /**
+     * The playing video's frame rate. VLC knows it for most files but not for a DVD (its
+     * video stays "0x0, 0/0" for the whole film), so a disc's comes from the core instead.
+     */
+    private fun frameRate(): Float? {
+        val v = player.currentVideoTrack
+        if (v != null && v.frameRateNum > 0 && v.frameRateDen > 0) return v.frameRateNum.toFloat() / v.frameRateDen
+        return frameRateHint.takeIf { it > 0f }
     }
 
     private fun refreshTracks() {
@@ -158,10 +184,7 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
                 else -> null
             }
         }
-        video?.takeIf { it.frameRateDen > 0 && it.frameRateNum > 0 }?.let { v ->
-            val fps = v.frameRateNum.toFloat() / v.frameRateDen
-            if (fps != _state.value.frameRate) _state.update { st -> st.copy(frameRate = fps) }
-        }
+        frameRate()?.let { fps -> if (fps != _state.value.frameRate) _state.update { st -> st.copy(frameRate = fps) } }
         return listOfNotNull(res, video?.codec?.let(::fourcc), audio?.codec?.let(::fourcc)).joinToString(" · ")
     }
 
@@ -194,15 +217,24 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
     override fun seekTo(ms: Long) {
         val total = length
         val target = if (total > 0) ms.coerceIn(0, total) else ms.coerceAtLeast(0)
+        pendingSeek = target
+        _state.update { it.copy(positionMs = target) }
+        main.removeCallbacks(applySeek)
+        main.postDelayed(applySeek, SEEK_SETTLE_MS)
+    }
+
+    private fun seekNow(ms: Long) {
+        val total = length
+        val target = if (total > 0) ms.coerceIn(0, total) else ms.coerceAtLeast(0)
         if (player.length <= 0 && total > 0) {
             // A stream VLC can't time: seek by position within the known length.
             player.position = target.toFloat() / total
         } else {
-            player.time = target
+            player.setTime(target, true) // the nearest keyframe: far less work for the decoder
         }
     }
 
-    override fun seekBy(deltaMs: Long) = seekTo(player.time + deltaMs)
+    override fun seekBy(deltaMs: Long) = seekTo((pendingSeek ?: player.time) + deltaMs)
 
     override fun selectAudio(id: String) {
         player.audioTrack = id.toInt()
@@ -235,6 +267,7 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
     }
 
     override fun release() {
+        main.removeCallbacks(applySeek)
         player.setEventListener(null)
         player.stop()
         player.detachViews()
@@ -254,6 +287,8 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
         DisposableEffect(Unit) { onDispose { player.detachViews() } }
     }
 }
+
+private const val SEEK_SETTLE_MS = 400L
 
 /**
  * VLC's codec names as people know them. libVLC reports either a fourcc ("h264", "a52 ") or a

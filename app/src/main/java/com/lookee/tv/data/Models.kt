@@ -183,6 +183,8 @@ data class DiscPlay(
     val parts: Int = 0,
     val size: Long = 0,
     val seconds: Double = 0.0,
+    /** Frames per second when the disc says (DVDs), else 0. */
+    val frameRate: Double = 0.0,
 )
 
 /** One Continue Watching card. [key] is the file path (or stream key) to resume. */
