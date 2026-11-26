@@ -73,6 +73,8 @@ data class Source(
     val durationHintMs: Long = 0,
     /** The frame rate when the source can't say (a DVD: the core reads it from the disc). */
     val frameRateHint: Float = 0f,
+    /** Decode the video in software and deinterlace it (DVDs; see VlcEngine.create). */
+    val softwareVideo: Boolean = false,
 )
 
 /** An audio or subtitle track to pick. */

@@ -130,9 +130,11 @@ fun PlayerScreen(item: PlayItem) {
     val ui by (session?.engine?.state ?: noState).collectAsState()
 
     fun save(s: Session? = session, finished: Boolean = false): Job? {
-        if (s == null || s.source.discMenu) return null // a disc at its menu has no single timeline
+        if (s == null) return null
         val st = s.engine.state.value
         if (st.durationMs <= 0) return null
+        // A disc: only its feature, not its menus or a short extra (resuming plays the longest title).
+        if (s.source.discMenu && (st.inMenu || st.durationMs < 20 * 60_000)) return null
         val position = if (finished) st.durationMs else st.positionMs
         if (position <= 0) return null
         return app.appScope.launch { runCatching { app.core.saveProgress(s.item.path, s.item.titleId, position, st.durationMs) } }
@@ -413,9 +415,10 @@ private suspend fun resolveSource(item: PlayItem, app: LookeeApp): Pair<Source, 
     val main = runCatching { app.core.playDisc(item.path, if (kind == "dvd" || kind == "iso") kind else "bluray") }.getOrNull()
     val mainUri = main?.let { Uri.parse(it.url) }
     val fps = main?.frameRate?.toFloat() ?: 0f
+    val dvd = main != null && (main.kind == "dvd" || main.kind == "iso") // an image the core read as a DVD
     return when {
-        kind == "iso" -> Source(mrl("dvd", file), label, discMenu = true, alternates = listOfNotNull(mrl("bluray", file), mainUri), frameRateHint = fps) to true
-        kind == "dvd" -> Source(mrl("dvd", file), label, discMenu = true, alternates = listOfNotNull(mainUri), frameRateHint = fps) to true
+        kind == "iso" -> Source(mrl("dvd", file), label, discMenu = true, alternates = listOfNotNull(mrl("bluray", file), mainUri), frameRateHint = fps, softwareVideo = dvd) to true
+        kind == "dvd" -> Source(mrl("dvd", file), label, discMenu = true, alternates = listOfNotNull(mainUri), frameRateHint = fps, softwareVideo = dvd) to true
         file.name.equals("BDMV", ignoreCase = true) -> Source(mrl("bluray", file.parentFile ?: file), label, discMenu = true, alternates = listOfNotNull(mainUri)) to true
         File(file, "BDMV").isDirectory -> Source(mrl("bluray", file), label, discMenu = true, alternates = listOfNotNull(mainUri)) to true
         // Flattened Blu-ray copy: the core serves the main playlist as one stream.

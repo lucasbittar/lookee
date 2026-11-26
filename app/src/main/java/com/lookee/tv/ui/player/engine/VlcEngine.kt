@@ -33,22 +33,15 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
     private val _state = MutableStateFlow(EngineState())
     override val state: StateFlow<EngineState> = _state.asStateFlow()
 
-    private val libVlc = LibVLC(
-        context,
-        arrayListOf(
-            "--audio-time-stretch",
-            // No software deinterlacing: it forces every frame off the hardware decoder and the
-            // Mi Box's CPU can't keep up (DVDs stuttered). The Amlogic decoder handles interlace.
-            "--deinterlace=0",
-            // Draw straight to Android's surface, not through OpenGL: VLC's GLES output crashed
-            // in the Mi Box's Mali driver (eglSwapBuffers, SIGSEGV) when seeking a Blu-ray.
-            "--vout=android_display",
-            "--no-video-title-show",
-            "--sub-text-scale=100",
-            "--no-osd",
-        ),
-    )
-    private val player = MediaPlayer(libVlc)
+    private val context = context.applicationContext
+
+    // Made on the first load, because their options depend on the source (see [create]).
+    private lateinit var libVlc: LibVLC
+    private lateinit var player: MediaPlayer
+    private var softwareVideo = false
+
+    /** A disc resumed from Continue Watching: skip its menu, play the main title from here. */
+    private var resumeAt = 0L
     private var label = ""
     private var alternates: List<Uri> = emptyList()
     private var described = false
@@ -70,7 +63,30 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
     /** VLC's own length, else the source's hint (a stream served by the core has none). */
     private val length: Long get() = player.length.takeIf { it > 0 } ?: durationHint
 
-    init {
+    /**
+     * DVDs are decoded in software: through MediaCodec, the Mi Box's MPEG-2 decoder handed VLC
+     * pictures late and VLC dropped 4–9 a second (the stutter; the stats line showed it, the
+     * emulator dropped none). SD MPEG-2 is light work for the CPU, and then VLC can deinterlace:
+     * bob turns 25 interlaced frames into 50 pictures, one per refresh at 50 Hz. Everything else
+     * keeps hardware decoding and no deinterlacing (which would force frames off the decoder).
+     */
+    private fun create(software: Boolean) {
+        softwareVideo = software
+        libVlc = LibVLC(
+            context,
+            arrayListOf(
+                "--audio-time-stretch",
+                if (software) "--deinterlace=-1" else "--deinterlace=0",
+                "--deinterlace-mode=bob",
+                // Draw straight to Android's surface, not through OpenGL: VLC's GLES output crashed
+                // in the Mi Box's Mali driver (eglSwapBuffers, SIGSEGV) when seeking a Blu-ray.
+                "--vout=android_display",
+                "--no-video-title-show",
+                "--sub-text-scale=100",
+                "--no-osd",
+            ),
+        )
+        player = MediaPlayer(libVlc)
         player.setEventListener { e ->
             when (e.type) {
                 MediaPlayer.Event.Playing -> {
@@ -108,6 +124,8 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
         durationHint = source.durationHintMs
         frameRateHint = source.frameRateHint
         lastLoad = source to startMs
+        if (!::player.isInitialized) create(source.softwareVideo)
+        resumeAt = if (source.discMenu && startMs > 0) startMs else 0
         _state.value = EngineState(hasMenu = source.discMenu)
         open(source.uri, startMs, source.discMenu)
         source.sidecars.forEach { s ->
@@ -119,7 +137,7 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
         described = false
         lastStats = null
         val media = Media(libVlc, uri)
-        media.setHWDecoderEnabled(true, false) // MediaCodec when it can, software otherwise
+        media.setHWDecoderEnabled(!softwareVideo, false) // MediaCodec when it can, software otherwise
         if (startMs > 0 && !discMenu) media.addOption(":start-time=${startMs / 1000.0}")
         player.media = media
         media.release()
@@ -140,8 +158,21 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
                 hasMenu = it.hasMenu || hasMenu,
             )
         }
+        if (resumeAt > 0 && titles != null) resumeDisc(titles, current)
         if (_state.value.frameRate == 0f) frameRate()?.let { fps -> _state.update { it.copy(frameRate = fps) } }
         logStats()
+    }
+
+    private fun resumeDisc(titles: Array<MediaPlayer.Title>, current: Int) {
+        val main = titles.indices.filter { !titles[it].isMenu }.maxByOrNull { titles[it].duration } ?: return
+        when {
+            current != main -> player.title = main
+            player.isPlaying && player.length > 0 -> {
+                player.time = resumeAt.coerceAtMost(player.length - 5_000)
+                log("vlc resumed $label at title $main, ${resumeAt / 1000} s", false)
+                resumeAt = 0
+            }
+        }
     }
 
     private var statsAt = 0L
@@ -300,6 +331,7 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
 
     override fun release() {
         main.removeCallbacks(applySeek)
+        if (!::player.isInitialized) return
         player.setEventListener(null)
         player.stop()
         player.detachViews()
