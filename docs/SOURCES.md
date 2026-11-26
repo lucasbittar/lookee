@@ -16,6 +16,7 @@ Create `app/src/main/assets/sources.local.json`. The path is git-ignored, so it 
   "eztv_url": ["https://<eztv-api-host>", "https://<mirror>"],
   "torznab_urls": ["http://<mac-ip>:9696/1/api?apikey=<key>"],
   "stremio_addons": ["https://<addon-host>/manifest.json"],
+  "search_pages": ["https://<site>/search/{query}"],
   "tmdb_language": "en-US",
   "subtitle_languages": "pt-BR,en"
 }
@@ -34,3 +35,11 @@ A YTS address works if `<address>/api/v2/list_movies.json?query_term=sintel` ret
 ## More sites (Pirate Bay and others)
 
 These have no clean API of their own. Run **Prowlarr** or **Jackett** on a computer on your network: they search many sites and expose them as one Torznab address, which goes in `torznab_urls`. A Stremio add-on's `manifest.json` address works too, in `stremio_addons`.
+
+## Search pages (sites without an API)
+
+Some torrent sites have only a search page. Give lookee its address with `{query}` where the words go, one per line, under **Search pages** on the phone page (or `search_pages` in the defaults file). It reads the results page as a person would: the result links that repeat with long titles, plus the size and seeders next to them. When you pick a result, it opens that result's page for the magnet link (or `.torrent` file).
+
+- **Only for typed searches.** Search pages answer Discover's search box ("Torrents" under the title results). They are never asked for a movie's or show's own source list.
+- **Private.** Like the other source lists, the addresses are never shown back on the phone page, and nothing names a site in this repository.
+- **Best effort.** If a site redesigns its pages, its results may stop appearing; the other sources keep working.

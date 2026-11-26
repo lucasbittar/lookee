@@ -7,6 +7,10 @@ import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.runtime.CompositionLocalProvider
 import kotlinx.coroutines.launch
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
@@ -55,11 +59,17 @@ fun SettingsScreen() {
 
     val list = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    // Down from the tabs always lands on the first card's button. The nearest button below
+    // the Settings tab was a library folder's Remove, one OK away from asking to remove it.
+    val firstButton = remember { FocusRequester() }
     // A page of cards: scroll only to reveal what focus lands on (see RevealFocusScroll).
     CompositionLocalProvider(LocalBringIntoViewSpec provides RevealFocusScroll) {
         LazyColumn(
             state = list,
-            modifier = Modifier.fillMaxSize().padding(top = LocalNavInset.current),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = LocalNavInset.current)
+                .focusProperties { enter = { firstButton } },
             contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
@@ -78,7 +88,7 @@ fun SettingsScreen() {
                         if (it.hasFocus && list.canScrollBackward) scope.launch { withFrameNanos { }; withFrameNanos { }; list.scrollToItem(0) }
                     },
                 ) {
-                    PhoneSetupCard(state.phone, vm::startPhoneSetup, vm::stopPhoneSetup, Modifier.weight(1.2f))
+                    PhoneSetupCard(state.phone, vm::startPhoneSetup, vm::stopPhoneSetup, Modifier.weight(1.2f), firstButton)
                     StatusCard(state.settings, Modifier.weight(1f))
                 }
             }
@@ -96,7 +106,7 @@ fun SettingsScreen() {
 }
 
 @Composable
-private fun PhoneSetupCard(phone: PhoneSetup, onStart: () -> Unit, onStop: () -> Unit, modifier: Modifier) {
+private fun PhoneSetupCard(phone: PhoneSetup, onStart: () -> Unit, onStop: () -> Unit, modifier: Modifier, buttonFocus: FocusRequester) {
     LookeeCard(modifier) {
         SectionLabel("Set up from your phone")
         Spacer(Modifier.padding(top = 12.dp))
@@ -150,7 +160,7 @@ private fun PhoneSetupCard(phone: PhoneSetup, onStart: () -> Unit, onStop: () ->
                 PhoneSetup.Saved -> Triple("Set up again", onStart, ButtonStyle.Quiet)
                 is PhoneSetup.Failed -> Triple("Try again", onStart, ButtonStyle.Primary)
             }
-            LookeeButton(label, onClick = action, style = style)
+            LookeeButton(label, onClick = action, style = style, modifier = Modifier.focusRequester(buttonFocus))
             if (phone is PhoneSetup.Open) {
                 val m = phone.secondsLeft / 60
                 val s = phone.secondsLeft % 60

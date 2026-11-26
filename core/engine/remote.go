@@ -41,6 +41,7 @@ func (s settingsStore) Fields(ctx context.Context) ([]remote.Field, error) {
 		f(KeyEZTVURL, "EZTV-compatible API", "Base URL of an EZTV-style TV API. Several mirrors? One per line, tried in order.", "Torrent sources", true),
 		f(KeyTorznabURLs, "Torznab feeds", "Jackett or Prowlarr Torznab URLs including the apikey, one per line.", "Torrent sources", true),
 		f(KeyStremioAddons, "Stremio add-ons", "Add-on manifest URLs, one per line.", "Torrent sources", true),
+		f(KeySearchPages, "Search pages", "A torrent site's search address with {query} where the words go, one per line. Used only when you type a search in Discover, never for a title's sources.", "Torrent sources", true),
 	}, nil
 }
 

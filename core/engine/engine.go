@@ -37,19 +37,20 @@ const (
 	KeyEZTVURL             = "eztv_url"
 	KeyTorznabURLs         = "torznab_urls"   // one Torznab API URL (with apikey) per line
 	KeyStremioAddons       = "stremio_addons" // one add-on manifest URL per line
+	KeySearchPages         = "search_pages"   // torrent sites' search addresses with {query}, one per line
 )
 
 // secretKeys are never returned to a UI; only whether they are set. Indexer URL lists
 // are secret because Torznab URLs carry API keys and add-on URLs often carry tokens.
 var secretKeys = map[string]bool{
 	KeyTMDBAPIKey: true, KeyOpenSubtitlesAPIKey: true, KeyOpenSubtitlesPass: true,
-	KeyTorznabURLs: true, KeyStremioAddons: true,
+	KeyTorznabURLs: true, KeyStremioAddons: true, KeySearchPages: true,
 }
 
 var knownKeys = map[string]bool{
 	KeyTMDBAPIKey: true, KeyTMDBLanguage: true, KeyOpenSubtitlesAPIKey: true, KeySubtitleLanguages: true,
 	KeyOpenSubtitlesUser: true, KeyOpenSubtitlesPass: true, KeyYTSURL: true, KeyEZTVURL: true,
-	KeyTorznabURLs: true, KeyStremioAddons: true,
+	KeyTorznabURLs: true, KeyStremioAddons: true, KeySearchPages: true,
 }
 
 // ErrScanRunning is returned when a scan is requested while another is in progress.
@@ -196,7 +197,7 @@ func (e *Engine) Settings(ctx context.Context) (SettingsView, error) {
 		SubtitleLanguages:   all[KeySubtitleLanguages],
 	}
 	v.OpenSubtitlesLoginSet = all[KeyOpenSubtitlesUser] != "" && all[KeyOpenSubtitlesPass] != ""
-	v.TorrentSources = len(providersFrom(all))
+	v.TorrentSources = len(textProvidersFrom(all))
 	if v.TMDBLanguage == "" {
 		v.TMDBLanguage = "en-US"
 	}

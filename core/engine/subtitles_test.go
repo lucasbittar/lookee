@@ -44,3 +44,32 @@ func TestSubtitleSearchForStream(t *testing.T) {
 		t.Fatalf("movie query = %v", got)
 	}
 }
+
+// Search pages answer typed searches only; a title's own sources never include them.
+func TestSearchPagesOnlyInTextSearch(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`<a href="magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Big.Buck.Bunny.1080p">m</a>`))
+	}))
+	t.Cleanup(srv.Close)
+	tmp := t.TempDir()
+	e, err := Open(Options{DBPath: filepath.Join(tmp, "lookee.db"), CacheDir: tmp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	ctx := context.Background()
+	if err := e.SetSetting(ctx, KeySearchPages, srv.URL+"/s/{query}"); err != nil {
+		t.Fatal(err)
+	}
+	res, err := e.SearchTorrentsText(ctx, "", "big buck")
+	if err != nil || len(res.Results) != 1 || res.Results[0].Provider != "127.0.0.1" {
+		t.Fatalf("text search = %+v, %v", res, err)
+	}
+	all, _ := e.store.AllSettings(ctx)
+	if n := len(providersFrom(all)); n != 0 {
+		t.Fatalf("title search providers = %d, want none", n)
+	}
+	if v, _ := e.Settings(ctx); v.TorrentSources != 1 {
+		t.Fatalf("sources = %d", v.TorrentSources)
+	}
+}

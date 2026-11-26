@@ -158,12 +158,14 @@ func Search(ctx context.Context, providers []Provider, q Query) ([]Result, error
 
 var httpClient = &http.Client{Timeout: 20 * time.Second}
 
-func getBody(ctx context.Context, u string) ([]byte, error) {
+func getBody(ctx context.Context, u string) ([]byte, error) { return getBodyAs(ctx, u, "lookee/0.1") }
+
+func getBodyAs(ctx context.Context, u, agent string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "lookee/0.1")
+	req.Header.Set("User-Agent", agent)
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err

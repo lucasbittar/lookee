@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/lucasbittar/lookee/core/db"
@@ -37,6 +39,21 @@ func providersFrom(s map[string]string) []torrent.Provider {
 	}
 	for i, u := range lines(s[KeyStremioAddons]) {
 		ps = append(ps, torrent.Stremio{Label: fmt.Sprintf("addon%d", i+1), BaseURL: u})
+	}
+	return ps
+}
+
+// textProvidersFrom adds the search pages, which answer free-text searches only: what they
+// hold never appears among a TMDB title's sources.
+func textProvidersFrom(s map[string]string) []torrent.Provider {
+	ps := providersFrom(s)
+	for i, u := range lines(s[KeySearchPages]) {
+		// Results name the site they came from; it only ever shows on the user's own TV.
+		label := fmt.Sprintf("page%d", i+1)
+		if pu, err := url.Parse(strings.Replace(u, "{query}", "x", 1)); err == nil && pu.Hostname() != "" {
+			label = strings.TrimPrefix(pu.Hostname(), "www.")
+		}
+		ps = append(ps, torrent.SearchPage{Label: label, Template: u})
 	}
 	return ps
 }
@@ -98,9 +115,13 @@ func (e *Engine) SearchTorrents(ctx context.Context, kind string, tmdbID int64, 
 
 // SearchTorrentsText searches indexers by free text (concerts, things TMDB lacks).
 func (e *Engine) SearchTorrentsText(ctx context.Context, kind, text string) (TorrentSearch, error) {
-	ps, err := e.providers(ctx)
+	all, err := e.store.AllSettings(ctx)
 	if err != nil {
 		return TorrentSearch{}, err
+	}
+	ps := textProvidersFrom(all)
+	if len(ps) == 0 {
+		return TorrentSearch{}, ErrNoTorrentSources
 	}
 	if kind == "" {
 		kind = db.KindMovie
@@ -127,6 +148,15 @@ func (e *Engine) runSearch(ctx context.Context, ps []torrent.Provider, q torrent
 // about once a second until the stream stops.
 func (e *Engine) StartStream(ctx context.Context, source string, fileIndex int, onStats func(torrent.Stats)) (torrent.Stats, error) {
 	e.StopStream()
+	// A search-page result: its magnet (or .torrent) is on its own page, read now.
+	if page, ok := strings.CutPrefix(source, torrent.PagePrefix); ok {
+		resolved, err := torrent.ResolvePage(ctx, page, filepath.Join(e.opts.StreamCacheDir, "picked"))
+		if err != nil {
+			e.log.Warn("stream page", "err", err)
+			return torrent.Stats{State: "error", Error: err.Error()}, err
+		}
+		source = resolved
+	}
 	e.log.Info("stream start", "source", sourceLabel(source), "fileIndex", fileIndex)
 	sess, err := torrent.Start(ctx, torrent.Config{CacheRoot: e.opts.StreamCacheDir, Logger: e.log}, source, fileIndex, onStats)
 	if err != nil {

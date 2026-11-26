@@ -12,7 +12,7 @@ import (
 // seedableKeys are the settings a private defaults file may provide. API keys are left
 // out on purpose: they go through the phone page, never into a file baked into an APK.
 var seedableKeys = map[string]bool{
-	KeyYTSURL: true, KeyEZTVURL: true, KeyTorznabURLs: true, KeyStremioAddons: true,
+	KeyYTSURL: true, KeyEZTVURL: true, KeyTorznabURLs: true, KeyStremioAddons: true, KeySearchPages: true,
 	KeyTMDBLanguage: true, KeySubtitleLanguages: true,
 }
 

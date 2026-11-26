@@ -89,6 +89,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
 private val violet = CategoryLook.Discover.tint
@@ -101,6 +102,9 @@ data class DiscoverState(
     val shows: List<DiscoverItem> = emptyList(),
     val query: String = "",
     val results: List<DiscoverItem>? = null,
+    /** Torrents for the typed words, from every source including search pages (null: none). */
+    val torrents: List<TorrentResult>? = null,
+    val torrentsLoading: Boolean = false,
     val needsKey: Boolean = false,
     val error: String? = null,
 )
@@ -128,16 +132,25 @@ class DiscoverViewModel(private val core: GoCoreBridge) : ViewModel() {
         _state.value = _state.value.copy(query = q)
         searchJob?.cancel()
         if (q.trim().length < 2) {
-            _state.value = _state.value.copy(results = null)
+            _state.value = _state.value.copy(results = null, torrents = null, torrentsLoading = false)
             return
         }
         searchJob = viewModelScope.launch {
             delay(450) // wait for the user to stop typing
+            _state.value = _state.value.copy(torrentsLoading = true)
+            // Titles (TMDB) and torrents for the words themselves, side by side: the second
+            // finds what TMDB doesn't list, through the sources that answer free text.
+            val torrents = async {
+                runCatching { core.searchTorrentsText("", q.trim()).results }
+                    .getOrElse { e -> if (e is LookeeException && e.code == Codes.NO_TORRENT_SOURCES) null else emptyList() }
+            }
             _state.value = try {
                 _state.value.copy(results = core.searchTmdb(q))
             } catch (e: Exception) {
                 _state.value.copy(error = e.message)
             }
+            val found = torrents.await()
+            _state.value = _state.value.copy(torrents = found?.take(MAX_TEXT_TORRENTS), torrentsLoading = false)
         }
     }
 }
@@ -172,7 +185,24 @@ fun DiscoverScreen() {
         LazyColumn(contentPadding = PaddingValues(top = 8.dp, bottom = 48.dp), verticalArrangement = Arrangement.spacedBy(32.dp)) {
             val results = state.results
             if (results != null) {
-                item { DiscoverRow(if (results.isEmpty()) "No results for “${state.query}”" else "Results", results, open) }
+                item { DiscoverRow(if (results.isEmpty()) "No titles for “${state.query}”" else "Results", results, open) }
+                val torrents = state.torrents
+                when {
+                    state.torrentsLoading -> item {
+                        Column(Modifier.padding(horizontal = ScreenInset)) {
+                            RowTitle("Torrents", inset = 0.dp)
+                            Text("Searching your sources for “${state.query.trim()}”…", style = MaterialTheme.typography.bodyMedium, color = LookeeColors.Muted)
+                        }
+                    }
+                    torrents != null -> item {
+                        Column(Modifier.padding(horizontal = ScreenInset), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            RowTitle(if (torrents.isEmpty()) "No torrents for “${state.query.trim()}”" else "Torrents", inset = 0.dp)
+                            torrents.forEachIndexed { i, r ->
+                                StreamRow(r, best = i == 0, modifier = Modifier) { nav.push(Route.Buffering(r.title, r)) }
+                            }
+                        }
+                    }
+                }
             } else {
                 if (state.movies.isNotEmpty()) item { DiscoverRow("Trending this week", state.movies, open) }
                 if (state.shows.isNotEmpty()) item { DiscoverRow("Trending shows", state.shows, open) }
@@ -207,6 +237,9 @@ private fun DiscoverRow(title: String, items: List<DiscoverItem>, open: (Discove
         }
     }
 }
+
+/** Torrents listed under a typed search: the best seeded first. */
+private const val MAX_TEXT_TORRENTS = 15
 
 // ---- pick a stream ----
 
@@ -289,7 +322,7 @@ private fun StreamRow(r: TorrentResult, best: Boolean, modifier: Modifier, onCli
     MediaSurface(onClick = onClick, modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }, focusedScale = 1.02f) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Text(
-                r.quality.ifEmpty { "?" },
+                r.quality.ifEmpty { "—" },
                 style = MaterialTheme.typography.labelLarge,
                 color = if (best) Color(0xFFB9A2F7) else LookeeColors.Text,
                 modifier = Modifier.width(64.dp).clip(RoundedCornerShape(7.dp)).background(if (best) violet.copy(alpha = 0.18f) else LookeeColors.Line).padding(vertical = 4.dp),

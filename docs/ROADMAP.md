@@ -189,6 +189,7 @@ Implementation notes (2026-11-24):
 - [x] Details: backdrop, synopsis, cast row, season/episode list for series, Play / Resume, Fix Match dialog.
 - [x] Tutorials: folder browser backed by `BrowseFolder`, no metadata.
 - [x] Discover: trending rows, search, torrent list with quality and seeders, buffering overlay driven by `StreamCallback`.
+- [x] Discover search also lists **torrents for the typed words** (`SearchTorrentsText`) under the title results, for things TMDB doesn't list. Besides the regular sources it asks the user's **search pages**: a site's search address with `{query}`, read like a person reads it (repeated result links with long titles, then size and seeders; magnets on the page when there are). A picked result's magnet is read from its own page only then. Search pages answer typed searches only, never a TMDB title's source list. Checked on the Mi Box with a stand-in site (2026-11-26). Entering Settings from the tabs now lands on its first button (it could land on a folder's Remove).
 - [x] Coil configured with the 150 MB disk cap.
 
 **Implementation notes (so far)**
