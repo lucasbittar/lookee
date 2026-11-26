@@ -8,7 +8,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import kotlinx.coroutines.launch
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.remember
-import androidx.compose.ui.focus.focusProperties
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.runtime.rememberCoroutineScope
@@ -50,7 +51,7 @@ import com.lookee.tv.ui.components.SuccessCheck
 import com.lookee.tv.ui.components.Tone
 import com.lookee.tv.ui.theme.LookeeColors
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun SettingsScreen() {
     val app = LookeeApp.from(LocalContext.current)
@@ -62,6 +63,7 @@ fun SettingsScreen() {
     // Down from the tabs always lands on the first card's button. The nearest button below
     // the Settings tab was a library folder's Remove, one OK away from asking to remove it.
     val firstButton = remember { FocusRequester() }
+    var pageHadFocus by remember { mutableStateOf(false) }
     // A page of cards: scroll only to reveal what focus lands on (see RevealFocusScroll).
     CompositionLocalProvider(LocalBringIntoViewSpec provides RevealFocusScroll) {
         LazyColumn(
@@ -69,7 +71,12 @@ fun SettingsScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = LocalNavInset.current)
-                .focusProperties { enter = { firstButton } },
+                .onFocusChanged {
+                    // Directional search picks the nearest button geometrically, ignoring
+                    // focus-enter rules, so focus arriving from the tabs is moved here.
+                    if (it.hasFocus && !pageHadFocus) scope.launch { runCatching { firstButton.requestFocus() } }
+                    pageHadFocus = it.hasFocus
+                },
             contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 16.dp, bottom = 48.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
