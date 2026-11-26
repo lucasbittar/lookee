@@ -86,6 +86,7 @@ import com.lookee.tv.ui.player.engine.VlcEngine
 import com.lookee.tv.ui.theme.LookeeColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -128,13 +129,13 @@ fun PlayerScreen(item: PlayItem) {
     val noState = remember { MutableStateFlow(EngineState()) }
     val ui by (session?.engine?.state ?: noState).collectAsState()
 
-    fun save(s: Session? = session, finished: Boolean = false) {
-        if (s == null || s.source.discMenu) return // a disc at its menu has no single timeline
+    fun save(s: Session? = session, finished: Boolean = false): Job? {
+        if (s == null || s.source.discMenu) return null // a disc at its menu has no single timeline
         val st = s.engine.state.value
-        if (st.durationMs <= 0) return
+        if (st.durationMs <= 0) return null
         val position = if (finished) st.durationMs else st.positionMs
-        if (position <= 0) return
-        app.appScope.launch { runCatching { app.core.saveProgress(s.item.path, s.item.titleId, position, st.durationMs) } }
+        if (position <= 0) return null
+        return app.appScope.launch { runCatching { app.core.saveProgress(s.item.path, s.item.titleId, position, st.durationMs) } }
     }
 
     fun start(target: PlayItem, source: Source, vlc: Boolean, startMs: Long) {
@@ -182,15 +183,19 @@ fun PlayerScreen(item: PlayItem) {
     DisposableEffect(s) {
         onDispose {
             if (s != null) {
-                save(s)
+                if (s !== session) save(s) // replaced (next episode, engine switch); leaving saves below
                 s.engine.release()
             }
         }
     }
+    // Disposed before the effect above (effects are disposed in reverse order), so the last
+    // position is read while the engine is still alive.
     DisposableEffect(Unit) {
         onDispose {
-            app.library.changed() // Continue Watching and progress bars catch up
+            val saved = save()
             app.appScope.launch {
+                saved?.join()
+                app.library.changed() // only now: Continue Watching and progress bars reload with it
                 if (item.stream) runCatching { app.core.stopStream() }
                 app.core.stopDisc()
             }

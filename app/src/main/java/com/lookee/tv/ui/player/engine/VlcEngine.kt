@@ -92,7 +92,7 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
         val next = alternates.firstOrNull()
         if (next != null) {
             // A disc image that isn't a DVD is tried as a Blu-ray next.
-            log("vlc couldn't open $label as ${player.media?.uri?.scheme}; trying ${next.scheme}", true)
+            log("vlc couldn't open $label as ${withMedia { it.uri?.scheme }}; trying ${next.scheme}", true)
             alternates = alternates.drop(1)
             _state.update { it.copy(hasMenu = false, error = null) }
             open(next, 0, discMenu = true)
@@ -117,6 +117,7 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
 
     private fun open(uri: Uri, startMs: Long, discMenu: Boolean) {
         described = false
+        lastStats = null
         val media = Media(libVlc, uri)
         media.setHWDecoderEnabled(true, false) // MediaCodec when it can, software otherwise
         if (startMs > 0 && !discMenu) media.addOption(":start-time=${startMs / 1000.0}")
@@ -140,6 +141,27 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
             )
         }
         if (_state.value.frameRate == 0f) frameRate()?.let { fps -> _state.update { it.copy(frameRate = fps) } }
+        logStats()
+    }
+
+    private var statsAt = 0L
+    private var lastStats: IntArray? = null
+
+    /**
+     * Every 20 s while playing: pictures decoded, shown and lost, and audio buffers lost, since
+     * the last line. Lost pictures mean the decoder or the display fell behind (a stutter).
+     */
+    private fun logStats() {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!player.isPlaying || now - statsAt < 20_000) return
+        statsAt = now
+        val st = withMedia { it.stats } ?: return
+        val cur = intArrayOf(st.decodedVideo, st.displayedPictures, st.lostPictures, st.playedAbuffers, st.lostAbuffers, st.demuxCorrupted)
+        val prev = lastStats
+        lastStats = cur
+        if (prev == null) return
+        val d = IntArray(cur.size) { cur[it] - prev[it] }
+        log("vlc stats $label: video decoded ${d[0]}, shown ${d[1]}, lost ${d[2]}; audio played ${d[3]}, lost ${d[4]}; corrupt ${d[5]}", d[2] > 0 || d[4] > 0)
     }
 
     /**
@@ -165,8 +187,7 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
     }
 
     /** "1080p · H.264 · DTS" from the playing media's tracks. */
-    private fun summary(): String {
-        val media = player.media ?: return ""
+    private fun summary(): String = withMedia { media ->
         var video: IMedia.VideoTrack? = null
         var audio: IMedia.AudioTrack? = null
         for (i in 0 until media.trackCount) {
@@ -185,23 +206,34 @@ class VlcEngine(context: Context, private val log: (String, Boolean) -> Unit) : 
             }
         }
         frameRate()?.let { fps -> if (fps != _state.value.frameRate) _state.update { st -> st.copy(frameRate = fps) } }
-        return listOfNotNull(res, video?.codec?.let(::fourcc), audio?.codec?.let(::fourcc)).joinToString(" · ")
-    }
+        listOfNotNull(res, video?.codec?.let(::fourcc), audio?.codec?.let(::fourcc)).joinToString(" · ")
+    }.orEmpty()
 
     private fun describe() {
         if (described) return
-        val media = player.media ?: return
-        if (media.trackCount == 0) return
-        described = true
-        val tracks = (0 until media.trackCount).joinToString("; ") { i ->
-            when (val t = media.getTrack(i)) {
-                is IMedia.VideoTrack -> "video: ${fourcc(t.codec)} ${t.width}x${t.height}"
-                is IMedia.AudioTrack -> "audio: ${fourcc(t.codec)} ${t.channels}ch ${t.language.orEmpty()}".trim()
-                is IMedia.SubtitleTrack -> "text: ${t.codec} ${t.language.orEmpty()}".trim()
-                else -> "other"
+        val tracks = withMedia { media ->
+            if (media.trackCount == 0) return@withMedia null
+            (0 until media.trackCount).joinToString("; ") { i ->
+                when (val t = media.getTrack(i)) {
+                    is IMedia.VideoTrack -> "video: ${fourcc(t.codec)} ${t.width}x${t.height}"
+                    is IMedia.AudioTrack -> "audio: ${fourcc(t.codec)} ${t.channels}ch ${t.language.orEmpty()}".trim()
+                    is IMedia.SubtitleTrack -> "text: ${t.codec} ${t.language.orEmpty()}".trim()
+                    else -> "other"
+                }
             }
-        }
+        } ?: return
+        described = true
         log("vlc tracks $label: $tracks", false)
+    }
+
+    /** [MediaPlayer.getMedia] takes a native reference each call: give it back after use. */
+    private inline fun <T> withMedia(block: (IMedia) -> T?): T? {
+        val media = player.media ?: return null
+        return try {
+            block(media)
+        } finally {
+            media.release()
+        }
     }
 
     override fun play() = player.play()
