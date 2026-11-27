@@ -14,7 +14,7 @@ Each phase ends with **exit criteria** that can be checked with a command or on 
 | 3 | gomobile binding & Android TV shell | macOS + emulator | ✅ |
 | 4 | TV screens & USB storage | emulator + Mi Box | 🟨 |
 | 5 | Player & subtitle hot-reload | Mi Box | ✅ |
-| 6 | End-to-end build, CI & release | macOS + GitHub | ⬜ |
+| 6 | End-to-end build, CI & release | macOS + GitHub | 🟨 first tagged release pending |
 
 The guiding idea: everything in Phases 1–2 is plain Go that runs and is tested on the Mac through `lookee-cli`. No Android device is needed until Phase 3, and by then the engine already works.
 
@@ -272,11 +272,12 @@ Implementation notes (2026-11-24):
 
 **Tasks**
 
-- [ ] `make all` runs `go test` → `gomobile bind` → `./gradlew lint assembleDebug`.
-- [ ] GitHub Actions: Go tests and `golangci-lint` on every push; full APK build on tags, attached to a GitHub Release.
-- [ ] Release signing config read from environment variables, never committed.
-- [ ] README: screenshots, install guide (sideload via `adb` or a downloader app), how to get TMDB and OpenSubtitles keys, legal note.
-- [ ] `docs/ARCHITECTURE.md` with the Go ↔ Kotlin diagram and the bridge API reference.
+- [x] `make all` runs Go tests and lint → `gomobile bind` → Android lint, Kotlin tests and `assembleDebug`. A fresh clone builds with it in about 70 s on the Mac.
+- [x] GitHub Actions: every push runs the Go tests and lint, then the Android library, Android lint, Kotlin tests and a debug APK (`ci.yml`). A `v*` tag builds, signs and publishes the per-ABI APKs with checksums (`release.yml`). Green since 2026-11-26.
+- [x] Release signing config read from environment variables, never committed (Decision 18, [RELEASING.md](RELEASING.md)). Waiting on the user's one-time setup (keystore password, GitHub secrets) before the first tag.
+- [x] README: screenshots, install guide (sideload via `adb` or a downloader app), how to get TMDB and OpenSubtitles keys, legal note.
+- [x] `docs/ARCHITECTURE.md` with the Go ↔ Kotlin diagram; the complete bridge API reference is in `docs/BRIDGE.md`.
+- [x] Lint: zero errors (an API 27 call on minSdk 26 now falls back on Android 8.0; two `produceState` uses rewritten).
 
 **Exit criteria**
 
@@ -317,6 +318,7 @@ These are places where the plan departs from, or tightens, `CLAUDE.md`. Each lis
 
 16. **SQLite through `mattn/go-sqlite3` (cgo), not `modernc.org/sqlite`.** The pure-Go driver crashed the app on the 32-bit Mi Box. Its libc emulation calls `statx(2)`, which Android 9's app seccomp policy kills instead of rejecting. mattn compiles the real SQLite with the NDK, uses bionic, and needs only `libc.so`. The cost is a C compile in `make bind` (~45 s for three ABIs) and cgo for desktop tests. This was the fallback already listed under Risk 1.
 17. **External subtitles are drawn by the app, not the engines (decided 2026-11-26).** Files next to the video and OpenSubtitles downloads are parsed by the core (`GetSubtitleCues`: SRT, VTT, ASS/SSA, any common encoding, markup dropped) and drawn over the video by `SubtitleOverlay`, which reads the engine's clock 25 times a second. Loading one mid-playback or moving its sync needs no re-prepare (ExoPlayer has no subtitle delay, and re-preparing on every 0.1 s step blanked the picture), and they look and size the same under ExoPlayer and VLC. Subtitles inside the file stay with the engine. The cost: ASS styling (positions, colors) is reduced to plain text.
+18. **Release key and packaging (decided 2026-11-26).** The release key is the key the Mi Box's install has always carried (it began as the Mac's debug key), kept as `~/.lookee/lookee-release.jks` outside the repo, so updates never force an uninstall that would wipe the library, settings and progress. A new key was the alternative; the user chose to keep this one. CI signs from repository secrets. Releases ship one APK per ARM ABI with **uncompressed** native libraries: compressed ones are extracted at install, so the box held both copies (~95 MB); now ~66 MB with no extraction. This reverses the earlier "compress the Go core" choice, whose reasoning didn't hold.
 
 ## Risks
 
