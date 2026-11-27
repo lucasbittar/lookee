@@ -52,6 +52,16 @@ jobs:
           done
           (cd dist && sha256sum *.apk > SHA256SUMS)
           gh release create "$GITHUB_REF_NAME" dist/* --title "lookee $v" --generate-notes
+      - name: Update the README's release badge
+        # Served from the repo: GitHub's image proxy dropped the live shields.io badge.
+        run: |
+          git fetch -q origin main && git checkout -q -B main origin/main
+          curl -sf "https://img.shields.io/badge/release-${GITHUB_REF_NAME}-F2B544" -o docs/badges/release.svg
+          if ! git diff --quiet docs/badges/release.svg; then
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "README: release badge ${GITHUB_REF_NAME}" docs/badges/release.svg
+            git push -q origin main
+          fi
       - name: Remove the key
         if: always()
         run: rm -f "$RUNNER_TEMP/lookee-release.jks"

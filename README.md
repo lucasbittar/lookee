@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/lucasbittar/lookee/actions/workflows/ci.yml"><img src="https://github.com/lucasbittar/lookee/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/lucasbittar/lookee/releases/latest"><img src="https://img.shields.io/github/v/release/lucasbittar/lookee?color=F2B544&amp;label=release&amp;cacheSeconds=3600" alt="Latest release"></a>
+  <a href="https://github.com/lucasbittar/lookee/releases/latest"><img src="docs/badges/release.svg" alt="Latest release"></a>
   <img src="docs/badges/android-tv.svg" alt="Android TV 8.0+">
   <img src="docs/badges/go.svg" alt="Go core">
   <img src="docs/badges/kotlin.svg" alt="Kotlin, Compose for TV">
