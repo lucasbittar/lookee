@@ -47,7 +47,10 @@ import androidx.tv.material3.Text
 import com.lookee.tv.R
 import com.lookee.tv.data.BootState
 import com.lookee.tv.data.BootStep
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.padding
 import com.lookee.tv.ui.theme.Inter
+import com.lookee.tv.ui.theme.JetBrainsMono
 import com.lookee.tv.ui.theme.LookeeColors
 import kotlinx.coroutines.delay
 import kotlin.math.exp
@@ -134,6 +137,25 @@ fun BootSplash(state: BootState, onFinished: () -> Unit) {
             ProgressBar(progress)
             Spacer(Modifier.height(18.dp))
             StepText(state)
+        }
+
+        // The installed version, quietly at the foot of the screen (inside TV overscan).
+        val context = LocalContext.current
+        val version = remember {
+            runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()
+        }
+        if (!version.isNullOrBlank()) {
+            Text(
+                "v$version",
+                color = LookeeColors.Muted,
+                fontFamily = JetBrainsMono,
+                fontSize = 14.sp,
+                letterSpacing = 0.04.em,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 40.dp)
+                    .alpha(reveal.value * 0.8f),
+            )
         }
     }
 }
