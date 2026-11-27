@@ -4,11 +4,11 @@
 
 <p align="center">
   <a href="https://github.com/lucasbittar/lookee/actions/workflows/ci.yml"><img src="https://github.com/lucasbittar/lookee/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/lucasbittar/lookee/releases/latest"><img src="https://img.shields.io/github/v/release/lucasbittar/lookee?color=F2B544&label=release" alt="Latest release"></a>
-  <img src="https://img.shields.io/badge/Android%20TV-8.0%2B-0D0F12?logo=androidtv&logoColor=white" alt="Android TV 8.0+">
-  <img src="https://img.shields.io/badge/Go-core-00ADD8?logo=go&logoColor=white" alt="Go core">
-  <img src="https://img.shields.io/badge/Kotlin-Compose%20for%20TV-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin, Compose for TV">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8B93A1" alt="MIT license"></a>
+  <a href="https://github.com/lucasbittar/lookee/releases/latest"><img src="https://img.shields.io/github/v/release/lucasbittar/lookee?color=F2B544&amp;label=release&amp;cacheSeconds=3600" alt="Latest release"></a>
+  <img src="docs/badges/android-tv.svg" alt="Android TV 8.0+">
+  <img src="docs/badges/go.svg" alt="Go core">
+  <img src="docs/badges/kotlin.svg" alt="Kotlin, Compose for TV">
+  <a href="LICENSE"><img src="docs/badges/license.svg" alt="MIT license"></a>
 </p>
 
 <p align="center">
