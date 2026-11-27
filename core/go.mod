@@ -2,6 +2,11 @@ module github.com/lucasbittar/lookee/core
 
 go 1.26.0
 
+// The exact Go used for every build, here and in CI. Go 1.26.0's runtime calls futex_time64
+// on 32-bit ARM, which Android 9's seccomp filter kills (lookee 1.0.0 crashed at launch on
+// the Mi Box); 1.27.4 is the version proven on the box.
+toolchain go1.27.4
+
 require (
 	github.com/anacrolix/torrent v1.63.0
 	github.com/mattn/go-sqlite3 v1.14.53

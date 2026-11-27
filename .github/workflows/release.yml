@@ -20,6 +20,13 @@ jobs:
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
+      - name: Go version
+        # The core must build with the toolchain go.mod pins (a different Go crashed 1.0.0 on the box).
+        run: |
+          want=$(sed -n 's/^toolchain //p' core/go.mod)
+          got=$(cd core && go env GOVERSION)
+          echo "go.mod pins $want, building with $got"
+          test "$want" = "$got"
       - name: Go tests
         run: make test
       - uses: ./.github/actions/android-toolchain
