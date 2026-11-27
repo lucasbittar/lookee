@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -191,7 +192,7 @@ fun HomeScreen() {
                 action = { LookeeButton("Open Settings", onClick = { nav.goToTab(Destination.Settings) }) },
             )
             else -> Column(Modifier.fillMaxSize().padding(top = inset)) {
-                HeroText(state.hero, Modifier.padding(start = 48.dp, top = 18.dp, end = 360.dp).height(176.dp))
+                HeroText(state.hero, Modifier.padding(start = 48.dp, top = 18.dp, end = 240.dp).height(176.dp))
                 LazyColumn(
                     contentPadding = PaddingValues(top = 12.dp, bottom = 48.dp),
                     verticalArrangement = Arrangement.spacedBy(32.dp),
@@ -282,7 +283,8 @@ private fun HeroText(hero: Hero?, modifier: Modifier) {
                 .background(LookeeColors.AccentSoft)
                 .padding(horizontal = 10.dp, vertical = 3.dp),
         )
-        FitText(hero.title, MaterialTheme.typography.displayLarge, LookeeColors.Text)
+        // Long concert titles shrink to fit rather than scroll forever.
+        FitText(hero.title, MaterialTheme.typography.displayLarge, LookeeColors.Text, minSize = 30.sp)
         if (hero.meta.isNotEmpty()) {
             Text(hero.meta, style = MaterialTheme.typography.bodyMedium, color = LookeeColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }

@@ -43,7 +43,10 @@ object FrameGrab {
         return null
     }
 
-    /** A black frame (a fade, a surface not drawn yet) isn't worth keeping. */
+    /**
+     * A black frame (a fade, a surface not drawn yet) isn't worth keeping. Only nearly black:
+     * concerts on a dark stage average around 15–20 and are still good pictures.
+     */
     fun isDark(b: Bitmap): Boolean {
         var sum = 0L
         var n = 0
@@ -54,7 +57,7 @@ object FrameGrab {
             sum += ((c shr 16 and 0xFF) * 299 + (c shr 8 and 0xFF) * 587 + (c and 0xFF) * 114) / 1000
             n++
         }
-        return n > 0 && sum / n < 20
+        return n > 0 && sum / n < 8
     }
 
     const val FRAME_W = 480
