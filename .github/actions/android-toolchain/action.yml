@@ -9,10 +9,7 @@ runs:
         distribution: temurin
         java-version: "17"
         cache: gradle
-    - uses: actions/setup-go@v7
-      with:
-        go-version-file: core/go.mod
-        cache-dependency-path: core/go.sum
+    - uses: ./.github/actions/go-pinned
     - name: NDK, build-tools, gomobile
       shell: bash
       run: |

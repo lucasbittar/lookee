@@ -16,20 +16,17 @@ jobs:
       LOOKEE_VERSION: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: core/go.mod
-          cache-dependency-path: core/go.sum
+      - uses: ./.github/actions/go-pinned
+      - name: Go tests
+        run: make test
+      - uses: ./.github/actions/android-toolchain
       - name: Go version
         # The core must build with the toolchain go.mod pins (a different Go crashed 1.0.0 on the box).
         run: |
           want=$(sed -n 's/^toolchain //p' core/go.mod)
-          got=$(cd core && go env GOVERSION)
+          got=$(cd "$RUNNER_TEMP" && go env GOVERSION)
           echo "go.mod pins $want, building with $got"
           test "$want" = "$got"
-      - name: Go tests
-        run: make test
-      - uses: ./.github/actions/android-toolchain
       - name: Release key
         env:
           KEYSTORE_BASE64: ${{ secrets.LOOKEE_KEYSTORE_BASE64 }}
@@ -43,8 +40,14 @@ jobs:
         run: |
           export LOOKEE_VERSION="${LOOKEE_VERSION#v}"
           make release
-      - name: Check the signature
+      - name: Check the signature and the Go inside
         run: |
+          want=$(sed -n 's/^toolchain //p' core/go.mod)
+          for f in app/build/outputs/apk/release/*-release.apk; do
+            got=$(unzip -p "$f" 'lib/*/libgojni.so' | strings | grep -m1 -oE 'go1\.[0-9]+\.[0-9]+')
+            echo "$(basename "$f"): Go $got"
+            test "$got" = "$want" || { echo "::error::$f was built with $got, not $want"; exit 1; }
+          done
           for f in app/build/outputs/apk/release/*-release.apk; do
             "$ANDROID_HOME"/build-tools/35.0.0/apksigner verify --print-certs "$f" | grep "SHA-256"
           done

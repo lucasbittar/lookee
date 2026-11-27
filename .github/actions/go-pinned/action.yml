@@ -1,0 +1,17 @@
+# Go at exactly the version core/go.mod pins with its `toolchain` line. setup-go's
+# go-version-file read the `go` line instead (1.26.0), whose runtime crashes on Android 9.
+name: Go (pinned)
+description: Set up the Go toolchain named by core/go.mod's toolchain line
+runs:
+  using: composite
+  steps:
+    - id: pin
+      shell: bash
+      run: |
+        v=$(sed -n 's/^toolchain go//p' core/go.mod)
+        test -n "$v" || { echo "::error::core/go.mod has no toolchain line"; exit 1; }
+        echo "version=$v" >> "$GITHUB_OUTPUT"
+    - uses: actions/setup-go@v7
+      with:
+        go-version: ${{ steps.pin.outputs.version }}
+        cache-dependency-path: core/go.sum
