@@ -14,7 +14,7 @@ Each phase ends with **exit criteria** that can be checked with a command or on 
 | 3 | gomobile binding & Android TV shell | macOS + emulator | ✅ |
 | 4 | TV screens & USB storage | emulator + Mi Box | 🟨 |
 | 5 | Player & subtitle hot-reload | Mi Box | ✅ |
-| 6 | End-to-end build, CI & release | macOS + GitHub | 🟨 first tagged release pending |
+| 6 | End-to-end build, CI & release | macOS + GitHub | ✅ |
 
 The guiding idea: everything in Phases 1–2 is plain Go that runs and is tested on the Mac through `lookee-cli`. No Android device is needed until Phase 3, and by then the engine already works.
 
@@ -274,7 +274,7 @@ Implementation notes (2026-11-24):
 
 - [x] `make all` runs Go tests and lint → `gomobile bind` → Android lint, Kotlin tests and `assembleDebug`. A fresh clone builds with it in about 70 s on the Mac.
 - [x] GitHub Actions: every push runs the Go tests and lint, then the Android library, Android lint, Kotlin tests and a debug APK (`ci.yml`). A `v*` tag builds, signs and publishes the per-ABI APKs with checksums (`release.yml`). Green since 2026-11-26.
-- [x] Release signing config read from environment variables, never committed (Decision 18, [RELEASING.md](RELEASING.md)). Waiting on the user's one-time setup (keystore password, GitHub secrets) before the first tag.
+- [x] Release signing config read from environment variables, never committed (Decision 18, [RELEASING.md](RELEASING.md)). First good release: v1.0.3, built and signed by CI, installed over the box's app with library and progress intact (2026-11-26).
 - [x] README: screenshots, install guide (sideload via `adb` or a downloader app), how to get TMDB and OpenSubtitles keys, legal note.
 - [x] `docs/ARCHITECTURE.md` with the Go ↔ Kotlin diagram; the complete bridge API reference is in `docs/BRIDGE.md`.
 - [x] Lint: zero errors (an API 27 call on minSdk 26 now falls back on Android 8.0; two `produceState` uses rewritten).
